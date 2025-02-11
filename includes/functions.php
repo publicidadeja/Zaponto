@@ -27,4 +27,15 @@ function verificarNumeroExistente($pdo, $numero, $usuario_id) {
     $stmt->execute([$numero, $usuario_id]);
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
+
+function verificarAssinaturaAtiva($pdo, $usuario_id) {
+    $stmt = $pdo->prepare("
+        SELECT * FROM assinaturas 
+        WHERE usuario_id = ? 
+        AND status = 'ativo' 
+        AND (data_fim IS NULL OR data_fim > NOW())
+    ");
+    $stmt->execute([$usuario_id]);
+    return $stmt->fetch();
+}
 ?>
