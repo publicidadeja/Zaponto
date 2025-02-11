@@ -28,14 +28,46 @@ function verificarNumeroExistente($pdo, $numero, $usuario_id) {
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
+
+function verificarPeriodoTeste($pdo, $usuario_id) {
+    $stmt = $pdo->prepare("
+        SELECT 
+            a.*,
+            DATEDIFF(a.data_fim, NOW()) as dias_restantes
+        FROM assinaturas a
+        WHERE a.usuario_id = ? 
+        AND a.is_trial = 1 
+        AND a.status = 'ativo'
+        AND a.data_fim > NOW()
+        LIMIT 1
+    ");
+    $stmt->execute([$usuario_id]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
 function verificarAssinaturaAtiva($pdo, $usuario_id) {
     $stmt = $pdo->prepare("
         SELECT * FROM assinaturas 
         WHERE usuario_id = ? 
         AND status = 'ativo' 
+        AND (is_trial = 1 OR plano_id > 0)
         AND (data_fim IS NULL OR data_fim > NOW())
     ");
     $stmt->execute([$usuario_id]);
-    return $stmt->fetch();
+    return $stmt->fetch(PDO::FETCH_ASSOC);
 }
+
+function verificarLimitesUsuario($pdo, $usuario_id) {
+    $assinatura = verificarAssinaturaAtiva($pdo, $usuario_id);
+    if (!$assinatura) {
+        return false;
+    }
+    return [
+        'limite_leads' => $assinatura['limite_leads'],
+        'limite_mensagens' => $assinatura['limite_mensagens'],
+        'tem_ia' => $assinatura['tem_ia']
+    ];
+}
+
+
 ?>

@@ -8,7 +8,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $senha = $_POST['senha'];
     $confirmar_senha = $_POST['confirmar_senha'];
     $telefone = trim($_POST['telefone']);
-    $plano_id = 1; // Plano básico por padrão
+    
+    // Configurações do plano teste
+    $plano_teste = [
+        'limite_leads' => 100,
+        'limite_mensagens' => 100,
+        'tem_ia' => 1,
+        'dias_teste' => 7
+    ];
 
     // Validações básicas
     if (empty($nome) || empty($email) || empty($senha) || empty($telefone)) {
@@ -22,14 +29,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($stmt->rowCount() > 0) {
             $erro_cadastro = "Este email já está cadastrado.";
         } else {
-            // Cria o hash da senha
-            $senha_hash = password_hash($senha, PASSWORD_DEFAULT);
+            try {
+                $pdo->beginTransaction();
+                
+                // Cria o hash da senha
+                $senha_hash = password_hash($senha, PASSWORD_DEFAULT);
+                
+                // Data atual e data de término do teste
+                $data_atual = new DateTime();
+                $data_fim_teste = (new DateTime())->modify('+7 days');
 
-            // Insere o novo usuário no banco de dados
-            $stmt = $pdo->prepare("INSERT INTO usuarios (nome, email, senha, telefone, plano_id, status) VALUES (?, ?, ?, ?, ?, 'ativo')");
-            if ($stmt->execute([$nome, $email, $senha_hash, $telefone, $plano_id])) {
+                // Insere o novo usuário
+                $stmt = $pdo->prepare("INSERT INTO usuarios (nome, email, senha, telefone, status, data_cadastro) VALUES (?, ?, ?, ?, 'ativo', NOW())");
+                $stmt->execute([$nome, $email, $senha_hash, $telefone]);
+                $usuario_id = $pdo->lastInsertId();
+
+                // Insere o período de teste
+                $stmt = $pdo->prepare("INSERT INTO assinaturas (usuario_id, plano_id, status, data_inicio, data_fim, is_trial, limite_leads, limite_mensagens, tem_ia) VALUES (?, 0, 'ativo', ?, ?, 1, ?, ?, ?)");
+                $stmt->execute([
+                    $usuario_id,
+                    $data_atual->format('Y-m-d H:i:s'),
+                    $data_fim_teste->format('Y-m-d H:i:s'),
+                    $plano_teste['limite_leads'],
+                    $plano_teste['limite_mensagens'],
+                    $plano_teste['tem_ia']
+                ]);
+
+                $pdo->commit();
                 $sucesso_cadastro = "Cadastro realizado com sucesso! <a href='login.php'>Clique aqui para fazer login</a>.";
-            } else {
+            } catch (Exception $e) {
+                $pdo->rollBack();
                 $erro_cadastro = "Erro ao cadastrar usuário. Tente novamente mais tarde.";
             }
         }

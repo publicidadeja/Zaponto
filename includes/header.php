@@ -1,7 +1,14 @@
 <?php
-// /includes/header.php
+// Iniciar sessão se ainda não estiver iniciada
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-// Definir a URL base dinamicamente (similar ao que já existe no sidebar.php)
+// Incluir arquivos necessários
+require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/db.php'; // Alterado de db_connection.php para db.php
+
+// Definir a URL base dinamicamente
 $base_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https://" : "http://") . $_SERVER['HTTP_HOST'];
 if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.1') {
     $base_url .= '/xzappro';
@@ -112,8 +119,49 @@ if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.
     </style>
     
     <?php if (isset($extra_css)) echo $extra_css; ?>
-</head>
+    </head>
 <body>
+    <?php if (isset($_SESSION['usuario_id'])): ?>
+        <?php
+        $periodo_teste = verificarPeriodoTeste($pdo, $_SESSION['usuario_id']);
+        $tem_assinatura = verificarAssinaturaAtiva($pdo, $_SESSION['usuario_id']);
+        
+        if ($periodo_teste) {
+            echo '<div class="alert alert-info text-center" role="alert">
+                Período de teste: ' . $periodo_teste['dias_restantes'] . ' dias restantes
+                <a href="planos.php" class="btn btn-primary btn-sm ml-3">Escolher um plano</a>
+            </div>';
+        } elseif (!$tem_assinatura) {
+            echo '<script>
+                $(document).ready(function() {
+                    $("#escolherPlanoModal").modal({
+                        backdrop: "static",
+                        keyboard: false
+                    });
+                });
+            </script>';
+        }
+        ?>
+
+        <!-- Modal para escolher plano -->
+        <div class="modal fade" id="escolherPlanoModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Escolha um Plano</h5>
+                    </div>
+                    <div class="modal-body">
+                        <p>Seu período de teste expirou. Para continuar usando a plataforma, escolha um de nossos planos.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="planos.php" class="btn btn-primary">Ver Planos Disponíveis</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    
     <!-- Header -->
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <div class="container">
