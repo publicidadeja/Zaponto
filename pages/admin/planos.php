@@ -73,34 +73,115 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
     <style>
-        .sidebar {
-            background-color: #343a40;
-            min-height: 100vh;
-            padding: 20px 0;
+        :root {
+            --primary-color: #3547DB;
+            --primary-hover: #283593;
+            --success-color: #2CC149;
+            --background-color: #f7f9fc;
+            --text-color: #364a63;
+            --border-color: #e2e8f0;
+            --card-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.05);
         }
-        .sidebar ul {
-            list-style: none;
-            padding: 0;
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: 'Nunito', sans-serif;
         }
-        .sidebar ul li {
-            padding: 10px 20px;
+
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: margin-left 0.3s;
         }
-        .sidebar ul li a {
-            color: #fff;
-            text-decoration: none;
-        }
-        .sidebar ul li a:hover {
-            color: #17a2b8;
-        }
+
         .plan-card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
             margin-bottom: 20px;
             transition: transform 0.2s;
+            box-shadow: var(--card-shadow);
         }
+
         .plan-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .plan-card .card-body {
+            padding: 1.5rem;
+        }
+
+        .plan-card .card-title {
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .plan-card .list-unstyled li {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .plan-card .list-unstyled li:last-child {
+            border-bottom: none;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+
+        .modal-content {
+            border-radius: 10px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .modal-header {
+            background-color: var(--background-color);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+        }
+
+        .form-control {
+            border-color: var(--border-color);
+            padding: 0.6rem 1rem;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(53, 71, 219, 0.25);
+        }
+
+        .alert {
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .btn-group {
+            gap: 0.5rem;
+        }
+
+        .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+            }
         }
     </style>
 </head>
@@ -108,46 +189,42 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
     <div class="container-fluid">
         <div class="row">
             <!-- Menu Lateral -->
-            <div class="col-md-3">
-                <div class="sidebar">
-                    <ul>
-                        <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
-                        <li><a href="usuarios.php"><i class="fas fa-users"></i> Usuários</a></li>
-                        <li><a href="planos.php"><i class="fas fa-box"></i> Planos</a></li>
-                        <li><a href="leads.php"><i class="fas fa-address-book"></i> Leads</a></li>
-                        <li><a href="configuracoes.php"><i class="fas fa-cog"></i> Configurações</a></li>
-                        <li><a href="relatorios.php"><i class="fas fa-chart-bar"></i> Relatórios</a></li>
-                        <li><a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
-                    </ul>
-                </div>
-            </div>
+            <?php include 'menu.php'; ?>
 
-            <!-- Conteúdo -->
-            <div class="col-md-9 py-4">
-                <h2 class="mb-4">Gerenciar Planos</h2>
+            <!-- Conteúdo Principal -->
+            <div class="main-content">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>Gerenciar Planos</h2>
+                    <button class="btn btn-primary" data-toggle="modal" data-target="#addPlanModal">
+                        <i class="fas fa-plus mr-2"></i>Adicionar Plano
+                    </button>
+                </div>
 
                 <?php if (isset($_SESSION['mensagem'])): ?>
-                    <div class="alert alert-success">
+                    <div class="alert alert-success alert-dismissible fade show">
+                        <i class="fas fa-check-circle mr-2"></i>
                         <?php 
                         echo $_SESSION['mensagem'];
                         unset($_SESSION['mensagem']);
                         ?>
+                        <button type="button" class="close" data-dismiss="alert">
+                            <span>&times;</span>
+                        </button>
                     </div>
                 <?php endif; ?>
 
                 <?php if (isset($_SESSION['erro'])): ?>
-                    <div class="alert alert-danger">
+                    <div class="alert alert-danger alert-dismissible fade show">
+                        <i class="fas fa-exclamation-circle mr-2"></i>
                         <?php 
                         echo $_SESSION['erro'];
                         unset($_SESSION['erro']);
                         ?>
+                        <button type="button" class="close" data-dismiss="alert">
+                            <span>&times;</span>
+                        </button>
                     </div>
                 <?php endif; ?>
-
-                <!-- Botão Adicionar Plano -->
-                <button class="btn btn-primary mb-3" data-toggle="modal" data-target="#addPlanModal">
-                    <i class="fas fa-plus"></i> Adicionar Plano
-                </button>
 
                 <!-- Lista de Planos -->
                 <div class="row">
@@ -155,29 +232,39 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
                         <div class="col-md-4">
                             <div class="card plan-card">
                                 <div class="card-body">
-                                    <h5 class="card-title"><?php echo htmlspecialchars($plano['nome']); ?></h5>
-                                    <h6 class="card-subtitle mb-2 text-muted">
-                                        R$ <?php echo number_format($plano['preco'], 2, ',', '.'); ?>
-                                    </h6>
-                                    <p class="card-text"><?php echo htmlspecialchars($plano['descricao']); ?></p>
-                                    <ul class="list-unstyled">
+                                    <h5 class="card-title d-flex justify-content-between align-items-center">
+                                        <?php echo htmlspecialchars($plano['nome']); ?>
+                                        <span class="badge badge-primary">
+                                            R$ <?php echo number_format($plano['preco'], 2, ',', '.'); ?>
+                                        </span>
+                                    </h5>
+                                    <p class="card-text text-muted">
+                                        <?php echo htmlspecialchars($plano['descricao']); ?>
+                                    </p>
+                                    <ul class="list-unstyled mt-3">
                                         <li>
-                                            <i class="fas fa-users"></i> Limite de Leads: 
-                                            <?php echo $plano['limite_leads'] == -1 ? 'Ilimitado' : number_format($plano['limite_leads']); ?>
+                                            <i class="fas fa-users mr-2 text-primary"></i>
+                                            Leads: <?php echo $plano['limite_leads'] == -1 ? 'Ilimitado' : number_format($plano['limite_leads']); ?>
                                         </li>
                                         <li>
-                                            <i class="fas fa-envelope"></i> Limite de Mensagens: 
-                                            <?php echo $plano['limite_mensagens'] == -1 ? 'Ilimitado' : number_format($plano['limite_mensagens']); ?>
+                                            <i class="fas fa-envelope mr-2 text-primary"></i>
+                                            Mensagens: <?php echo $plano['limite_mensagens'] == -1 ? 'Ilimitado' : number_format($plano['limite_mensagens']); ?>
                                         </li>
-                                        <li><i class="fab fa-stripe"></i> ID Stripe: <?php echo $plano['stripe_price_id']; ?></li>
-                                        <li><i class="fas fa-robot"></i> IA: <?php echo $plano['tem_ia'] ? 'Sim' : 'Não'; ?></li>
+                                        <li>
+                                            <i class="fab fa-stripe mr-2 text-primary"></i>
+                                            ID: <?php echo $plano['stripe_price_id']; ?>
+                                        </li>
+                                        <li>
+                                            <i class="fas fa-robot mr-2 text-primary"></i>
+                                            IA: <?php echo $plano['tem_ia'] ? 'Sim' : 'Não'; ?>
+                                        </li>
                                     </ul>
-                                    <div class="btn-group">
-                                        <button class="btn btn-sm btn-info" onclick="editPlan(<?php echo htmlspecialchars(json_encode($plano)); ?>)">
-                                            <i class="fas fa-edit"></i> Editar
+                                    <div class="btn-group w-100 mt-3">
+                                        <button class="btn btn-outline-primary" onclick="editPlan(<?php echo htmlspecialchars(json_encode($plano)); ?>)">
+                                            <i class="fas fa-edit mr-2"></i>Editar
                                         </button>
-                                        <button class="btn btn-sm btn-danger" onclick="deletePlan(<?php echo $plano['id']; ?>)">
-                                            <i class="fas fa-trash"></i> Excluir
+                                        <button class="btn btn-outline-danger" onclick="deletePlan(<?php echo $plano['id']; ?>)">
+                                            <i class="fas fa-trash mr-2"></i>Excluir
                                         </button>
                                     </div>
                                 </div>
@@ -372,13 +459,11 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
             document.getElementById('edit-descricao').value = plano.descricao;
             document.getElementById('edit-stripe-price-id').value = plano.stripe_price_id;
             
-            // Configurar limite de leads
             const leadsIlimitado = plano.limite_leads === -1;
             document.getElementById('edit-leads-ilimitado').checked = leadsIlimitado;
             document.getElementById('edit-limite-leads').value = leadsIlimitado ? '' : plano.limite_leads;
             document.getElementById('edit-limite-leads').disabled = leadsIlimitado;
             
-            // Configurar limite de mensagens
             const mensagensIlimitado = plano.limite_mensagens === -1;
             document.getElementById('edit-mensagens-ilimitado').checked = mensagensIlimitado;
             document.getElementById('edit-limite-mensagens').value = mensagensIlimitado ? '' : plano.limite_mensagens;
@@ -394,6 +479,11 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
                 document.getElementById('deleteForm').submit();
             }
         }
+
+        // Inicializar tooltips
+        $(function () {
+            $('[data-toggle="tooltip"]').tooltip();
+        });
     </script>
 </body>
 </html>

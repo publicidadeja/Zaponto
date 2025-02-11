@@ -15,7 +15,7 @@ if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.
             <div class="col-lg-4 mb-4 mb-lg-0">
                 <div class="footer-brand">
                     <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/Logo-ZapLocal-fundo-escuro-1-1.png" alt="ZapLocal Logo" class="footer-logo">
-                    <p class="mt-3">Automatize seus envios de WhatsApp de forma profissional e eficiente.</p>
+                    <p class="mt-3">Sistema de CRM que conecta seu negócio local aos clientes via WhatsApp. Simples, prático e eficiente. Zaponto: Seu negócio no ponto certo.</p>
                 </div>
             </div>
             <div class="col-lg-2 col-md-4 mb-4 mb-md-0">
@@ -39,8 +39,8 @@ if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.
             <div class="col-lg-4 col-md-4">
                 <h5>Contato</h5>
                 <ul class="footer-contact">
-                    <li><i class="fas fa-envelope"></i> suporte@zaplocal.com.br</li>
-                    <li><i class="fas fa-phone"></i> (11) 9999-9999</li>
+                    <li><i class="fas fa-envelope"></i> suporte@zaponto.com.br</li>
+                    <li><i class="fas fa-phone"></i> (35) 99194-4831</li>
                     <li><i class="fas fa-map-marker-alt"></i> São Paulo, SP - Brasil</li>
                 </ul>
                 <div class="social-links mt-3">
@@ -54,7 +54,7 @@ if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.
 
         <hr class="footer-divider">
         <div class="footer-bottom">
-            <p class="copyright">© <?php echo date('Y'); ?> ZapLocal. Todos os direitos reservados.</p>
+            <p class="copyright">© <?php echo date('Y'); ?> Zaponto. Todos os direitos reservados.</p>
             <div class="footer-bottom-links">
                 <a href="#">Termos de Uso</a>
                 <a href="#">Política de Privacidade</a>

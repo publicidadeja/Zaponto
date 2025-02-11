@@ -74,24 +74,132 @@ $usuarios = $pdo->query("
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.10.22/css/dataTables.bootstrap4.min.css">
     <style>
-        .sidebar {
-            background-color: #343a40;
-            min-height: 100vh;
-            padding: 20px 0;
+        :root {
+            --primary-color: #3547DB;
+            --primary-hover: #283593;
+            --success-color: #2CC149;
+            --background-color: #f7f9fc;
+            --text-color: #364a63;
+            --border-color: #e2e8f0;
+            --card-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.05);
         }
-        .sidebar ul {
-            list-style: none;
-            padding: 0;
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: 'Nunito', sans-serif;
         }
-        .sidebar ul li {
-            padding: 10px 20px;
+
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: margin-left 0.3s;
         }
-        .sidebar ul li a {
+
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            background-color: #fff;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.25rem;
+        }
+
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table th {
+            border-top: none;
+            font-weight: 600;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            color: var(--text-color);
+        }
+
+        .table td {
+            padding: 1rem;
+            vertical-align: middle;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+
+        .modal-content {
+            border-radius: 10px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .modal-header {
+            background-color: var(--background-color);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+        }
+
+        .form-control {
+            border-color: var(--border-color);
+            padding: 0.6rem 1rem;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(53, 71, 219, 0.25);
+        }
+
+        .alert {
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .badge {
+            padding: 0.5em 0.75em;
+            font-weight: 500;
+        }
+
+        .badge-success {
+            background-color: var(--success-color);
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
             color: #fff;
-            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
         }
-        .sidebar ul li a:hover {
-            color: #17a2b8;
+
+        .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            color: #fff !important;
+        }
+
+        .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+            background: var(--primary-hover);
+            border-color: var(--primary-hover);
+            color: #fff !important;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+            }
         }
     </style>
 </head>
@@ -99,88 +207,103 @@ $usuarios = $pdo->query("
     <div class="container-fluid">
         <div class="row">
             <!-- Menu Lateral -->
-            <div class="col-md-3">
-                <div class="sidebar">
-                    <ul>
-                        <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
-                        <li><a href="usuarios.php"><i class="fas fa-users"></i> Usuários</a></li>
-                        <li><a href="planos.php"><i class="fas fa-box"></i> Planos</a></li>
-                        <li><a href="leads.php"><i class="fas fa-address-book"></i> Leads</a></li>
-                        <li><a href="configuracoes.php"><i class="fas fa-cog"></i> Configurações</a></li>
-                        <li><a href="relatorios.php"><i class="fas fa-chart-bar"></i> Relatórios</a></li>
-                        <li><a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
-                    </ul>
-                </div>
-            </div>
+            <?php include 'menu.php'; ?>
 
-            <!-- Conteúdo -->
-            <div class="col-md-9 py-4">
-                <h2 class="mb-4">Gerenciar Usuários</h2>
+            <!-- Conteúdo Principal -->
+            <div class="main-content">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>Gerenciar Usuários</h2>
+                    <button class="btn btn-primary" data-toggle="modal" data-target="#modalUsuario" onclick="limparFormulario()">
+                        <i class="fas fa-plus mr-2"></i>Adicionar Usuário
+                    </button>
+                </div>
 
                 <?php if (isset($_SESSION['mensagem'])): ?>
-                    <div class="alert alert-success">
+                    <div class="alert alert-success alert-dismissible fade show">
+                        <i class="fas fa-check-circle mr-2"></i>
                         <?php 
                         echo $_SESSION['mensagem'];
                         unset($_SESSION['mensagem']);
                         ?>
+                        <button type="button" class="close" data-dismiss="alert">
+                            <span>&times;</span>
+                        </button>
                     </div>
                 <?php endif; ?>
 
                 <?php if (isset($_SESSION['erro'])): ?>
-                    <div class="alert alert-danger">
+                    <div class="alert alert-danger alert-dismissible fade show">
+                        <i class="fas fa-exclamation-circle mr-2"></i>
                         <?php 
                         echo $_SESSION['erro'];
                         unset($_SESSION['erro']);
                         ?>
+                        <button type="button" class="close" data-dismiss="alert">
+                            <span>&times;</span>
+                        </button>
                     </div>
                 <?php endif; ?>
 
-                <!-- Botão Adicionar Usuário -->
-                <button class="btn btn-primary mb-3" data-toggle="modal" data-target="#modalUsuario" onclick="limparFormulario()">
-                    <i class="fas fa-plus"></i> Adicionar Usuário
-                </button>
-
-                <!-- Tabela de Usuários -->
-                <div class="table-responsive">
-                    <table id="tabelaUsuarios" class="table table-striped table-bordered">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Nome</th>
-                                <th>Email</th>
-                                <th>Telefone</th>
-                                <th>Plano</th>
-                                <th>Status</th>
-                                <th>Data Cadastro</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($usuarios as $usuario): ?>
-                            <tr>
-                                <td><?php echo $usuario['id']; ?></td>
-                                <td><?php echo htmlspecialchars($usuario['nome']); ?></td>
-                                <td><?php echo htmlspecialchars($usuario['email']); ?></td>
-                                <td><?php echo htmlspecialchars($usuario['telefone']); ?></td>
-                                <td><?php echo htmlspecialchars($usuario['plano_nome']); ?></td>
-                                <td>
-                                    <span class="badge badge-<?php echo $usuario['status'] === 'ativo' ? 'success' : 'danger'; ?>">
-                                        <?php echo ucfirst($usuario['status']); ?>
-                                    </span>
-                                </td>
-                                <td><?php echo date('d/m/Y H:i', strtotime($usuario['created_at'])); ?></td>
-                                <td>
-                                    <button class="btn btn-sm btn-info" onclick="editarUsuario(<?php echo htmlspecialchars(json_encode($usuario)); ?>)">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-danger" onclick="confirmarExclusao(<?php echo $usuario['id']; ?>)">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                <!-- Card com a Tabela -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table id="tabelaUsuarios" class="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Usuário</th>
+                                        <th>Email</th>
+                                        <th>Telefone</th>
+                                        <th>Plano</th>
+                                        <th>Status</th>
+                                        <th>Data Cadastro</th>
+                                        <th width="100">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($usuarios as $usuario): ?>
+                                    <tr>
+                                        <td><?php echo $usuario['id']; ?></td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="user-avatar">
+                                                    <?php echo strtoupper(substr($usuario['nome'], 0, 1)); ?>
+                                                </div>
+                                                <div>
+                                                    <?php echo htmlspecialchars($usuario['nome']); ?>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($usuario['email']); ?></td>
+                                        <td><?php echo htmlspecialchars($usuario['telefone']); ?></td>
+                                        <td>
+                                            <span class="badge badge-light">
+                                                <?php echo htmlspecialchars($usuario['plano_nome']); ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-<?php echo $usuario['status'] === 'ativo' ? 'success' : 'danger'; ?>">
+                                                <?php echo ucfirst($usuario['status']); ?>
+                                            </span>
+                                        </td>
+                                        <td><?php echo date('d/m/Y H:i', strtotime($usuario['created_at'])); ?></td>
+                                        <td>
+                                            <div class="btn-group">
+                                                <button class="btn btn-sm btn-info" onclick="editarUsuario(<?php echo htmlspecialchars(json_encode($usuario)); ?>)" title="Editar">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-danger" onclick="confirmarExclusao(<?php echo $usuario['id']; ?>)" title="Excluir">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -261,7 +384,8 @@ $usuarios = $pdo->query("
                     </button>
                 </div>
                 <div class="modal-body">
-                    Tem certeza que deseja excluir este usuário?
+                    <p>Tem certeza que deseja excluir este usuário?</p>
+                    <p class="text-danger"><small>Esta ação não poderá ser desfeita.</small></p>
                 </div>
                 <div class="modal-footer">
                     <form method="POST">
@@ -280,15 +404,34 @@ $usuarios = $pdo->query("
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.10.22/js/dataTables.bootstrap4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.mask/1.14.16/jquery.mask.min.js"></script>
     
     <script>
         $(document).ready(function() {
-            // Inicializar DataTable
+            // Inicializar DataTable com configurações melhoradas
             $('#tabelaUsuarios').DataTable({
                 "language": {
                     "url": "//cdn.datatables.net/plug-ins/1.10.22/i18n/Portuguese-Brasil.json"
+                },
+                "pageLength": 10,
+                "order": [[0, "desc"]],
+                "responsive": true,
+                "dom": '<"top"f>rt<"bottom"lip><"clear">',
+                "drawCallback": function() {
+                    $('.dataTables_paginate > .pagination').addClass('pagination-sm');
                 }
             });
+
+            // Adicionar máscara ao telefone
+            $('#telefone').mask('(00) 00000-0000');
+
+            // Adicionar tooltips
+            $('[title]').tooltip();
+
+            // Fechar alertas automaticamente após 5 segundos
+            setTimeout(function() {
+                $('.alert').alert('close');
+            }, 5000);
         });
 
         function limparFormulario() {

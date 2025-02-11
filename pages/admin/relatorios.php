@@ -66,44 +66,88 @@ try {
     <title>Relatórios - Painel Admin</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .sidebar {
-            background-color: #343a40;
-            min-height: 100vh;
-            padding: 20px 0;
+        :root {
+            --primary-color: #3547DB;
+            --primary-hover: #283593;
+            --success-color: #2CC149;
+            --background-color: #f7f9fc;
+            --text-color: #364a63;
+            --border-color: #e2e8f0;
+            --card-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.05);
         }
-        .sidebar ul {
-            list-style: none;
-            padding: 0;
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: 'Nunito', sans-serif;
         }
-        .sidebar ul li {
-            padding: 10px 20px;
+
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: margin-left 0.3s;
         }
-        .sidebar ul li a {
-            color: #fff;
-            text-decoration: none;
+
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+            }
         }
-        .sidebar ul li a:hover {
-            color: #17a2b8;
-        }
+
         .stats-card {
             background: #fff;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.2s;
         }
+
+        .stats-card:hover {
+            transform: translateY(-5px);
+        }
+
         .stats-card h3 {
-            color: #343a40;
-            font-size: 1.2rem;
-            margin-bottom: 15px;
+            color: var(--text-color);
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
         }
+
         .stats-number {
             font-size: 2rem;
             font-weight: bold;
-            color: #17a2b8;
+            color: var(--primary-color);
+        }
+
+        .card {
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            background-color: transparent;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+        }
+
+        .table th {
+            border-top: none;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
         }
     </style>
 </head>
@@ -111,83 +155,76 @@ try {
     <div class="container-fluid">
         <div class="row">
             <!-- Menu Lateral -->
-            <div class="col-md-3">
-                <div class="sidebar">
-                    <ul>
-                        <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
-                        <li><a href="usuarios.php"><i class="fas fa-users"></i> Usuários</a></li>
-                        <li><a href="planos.php"><i class="fas fa-box"></i> Planos</a></li>
-                        <li><a href="leads.php"><i class="fas fa-address-book"></i> Leads</a></li>
-                        <li><a href="configuracoes.php"><i class="fas fa-cog"></i> Configurações</a></li>
-                        <li><a href="relatorios.php"><i class="fas fa-chart-bar"></i> Relatórios</a></li>
-                        <li><a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
-                    </ul>
-                </div>
-            </div>
+            <?php include 'menu.php'; ?>
 
-            <!-- Conteúdo -->
-            <div class="col-md-9 py-4">
-                <h2 class="mb-4">Relatórios</h2>
-
-                <!-- Filtro de Data -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <form method="GET" class="form-inline">
-                            <div class="form-group mr-3">
-                                <label class="mr-2">Data Início:</label>
-                                <input type="date" name="data_inicio" class="form-control" value="<?php echo $data_inicio; ?>">
-                            </div>
-                            <div class="form-group mr-3">
-                                <label class="mr-2">Data Fim:</label>
-                                <input type="date" name="data_fim" class="form-control" value="<?php echo $data_fim; ?>">
-                            </div>
-                            <button type="submit" class="btn btn-primary">Filtrar</button>
-                        </form>
-                    </div>
+            <!-- Conteúdo Principal -->
+            <div class="main-content">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>Relatórios</h2>
+                    <!-- Filtro de Data -->
+                    <form method="GET" class="form-inline">
+                        <div class="form-group mr-2">
+                            <input type="date" name="data_inicio" class="form-control" value="<?php echo $data_inicio; ?>">
+                        </div>
+                        <div class="form-group mr-2">
+                            <input type="date" name="data_fim" class="form-control" value="<?php echo $data_fim; ?>">
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-filter mr-2"></i>Filtrar
+                        </button>
+                    </form>
                 </div>
 
                 <!-- Cards de Estatísticas -->
                 <div class="row">
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <h3>Total de Usuários</h3>
+                            <h3><i class="fas fa-users mr-2"></i>Total de Usuários</h3>
                             <div class="stats-number"><?php echo number_format($total_usuarios); ?></div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <h3>Total de Leads</h3>
+                            <h3><i class="fas fa-address-book mr-2"></i>Total de Leads</h3>
                             <div class="stats-number"><?php echo number_format($total_leads); ?></div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <h3>Leads no Período</h3>
+                            <h3><i class="fas fa-calendar-check mr-2"></i>Leads no Período</h3>
                             <div class="stats-number"><?php echo number_format($leads_periodo); ?></div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <h3>Usuários Ativos</h3>
+                            <h3><i class="fas fa-user-check mr-2"></i>Usuários Ativos</h3>
                             <div class="stats-number"><?php echo number_format($usuarios_ativos); ?></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Gráfico de Leads por Dia -->
-                <div class="card mb-4">
+                <!-- Gráfico de Leads -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-line mr-2"></i>Leads por Dia
+                        </h5>
+                    </div>
                     <div class="card-body">
-                        <h3 class="card-title">Leads por Dia</h3>
-                        <canvas id="leadsChart"></canvas>
+                        <canvas id="leadsChart" height="300"></canvas>
                     </div>
                 </div>
 
                 <!-- Top Usuários -->
                 <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-trophy mr-2"></i>Top 10 Usuários
+                        </h5>
+                    </div>
                     <div class="card-body">
-                        <h3 class="card-title">Top 10 Usuários</h3>
                         <div class="table-responsive">
-                            <table class="table table-striped">
+                            <table class="table">
                                 <thead>
                                     <tr>
                                         <th>Usuário</th>
@@ -213,6 +250,7 @@ try {
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <script>
         // Configuração do gráfico de leads
@@ -224,17 +262,32 @@ try {
                 datasets: [{
                     label: 'Leads por Dia',
                     data: <?php echo json_encode(array_column($leads_por_dia, 'total')); ?>,
-                    borderColor: '#17a2b8',
-                    backgroundColor: 'rgba(23, 162, 184, 0.1)',
+                    borderColor: '#3547DB',
+                    backgroundColor: 'rgba(53, 71, 219, 0.1)',
                     borderWidth: 2,
-                    fill: true
+                    fill: true,
+                    tension: 0.4
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        grid: {
+                            borderDash: [2, 2]
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
                     }
                 }
             }

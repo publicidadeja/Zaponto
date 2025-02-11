@@ -11,9 +11,12 @@ if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo isset($page_title) ? $page_title . ' - ZapLocal' : 'ZapLocal'; ?></title>
+
+    <link rel="icon" href="<?php echo $base_url; ?>/assets/images/favicon.ico" type="image/x-icon">
     
     <!-- CSS Padrão -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
