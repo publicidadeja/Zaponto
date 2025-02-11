@@ -1,5 +1,16 @@
 <?php
 session_start();
+
+if(isset($_FILES['arquivo']) && $_FILES['arquivo']['error'] === 0) {
+    $arquivo_temp = $_FILES['arquivo']['tmp_name'];
+    $nome_arquivo = $_FILES['arquivo']['name'];
+    $caminho_destino = '../uploads/' . $nome_arquivo;
+    
+    if(move_uploaded_file($arquivo_temp, $caminho_destino)) {
+        $_SESSION['arquivo_midia'] = $caminho_destino;
+    }
+}
+
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php');
     exit;
@@ -123,11 +134,17 @@ if (empty($erros_envio)) {
             );
 
             // Preparar dados para envio
-            $data = [
-                'deviceId' => $dispositivo_id,
-                'number' => formatarNumeroWhatsApp($lead['numero']),
-                'message' => $mensagem_personalizada
+            $dados_envio = [
+                'deviceId' => $_POST['dispositivo'],
+                'number' => formatarNumeroWhatsApp($numero),
+                'message' => $mensagem
             ];
+
+            if(isset($_SESSION['arquivo_midia']) && file_exists($_SESSION['arquivo_midia'])) {
+                $dados_envio['mediaPath'] = $_SESSION['arquivo_midia'];
+                $tipo_arquivo = mime_content_type($_SESSION['arquivo_midia']);
+                $dados_envio['mediaType'] = explode('/', $tipo_arquivo)[0];
+            }
 
             // Adicionar arquivo se existir
             if (!empty($arquivo_path) && file_exists($arquivo_path)) {
@@ -509,9 +526,6 @@ if (empty($erros_envio)) {
                             <div class="d-flex justify-content-end mb-2">
                                 <button type="button" class="btn btn-outline-primary btn-sm me-2" id="btnSugestao">
                                     <i class="fas fa-magic"></i> Sugerir Melhorias
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnCriarMensagem">
-                                    <i class="fas fa-pen"></i> Criar Nova
                                 </button>
                             </div>
                             <textarea class="form-control" id="mensagem" name="mensagem" rows="4" required><?php echo htmlspecialchars($mensagem_base); ?></textarea>
