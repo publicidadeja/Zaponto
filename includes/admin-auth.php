@@ -1,5 +1,5 @@
 <?php
-session_start();
+
 
 function estaLogadoComoAdmin() {
     return isset($_SESSION['admin_id']);

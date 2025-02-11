@@ -2,6 +2,7 @@
 session_start();
 include '../../includes/db.php';
 include '../../includes/admin-auth.php';
+include '../../includes/stripe-config.php';
 
 // Verificar se é admin
 redirecionarSeNaoAdmin();
@@ -17,9 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $recursos = isset($_POST['recursos']) ? json_encode($_POST['recursos']) : '[]';
                 $limite_leads = $_POST['limite_leads'];
                 $limite_mensagens = $_POST['limite_mensagens'];
+                $stripe_price_id = $_POST['stripe_price_id'];
+                $tem_ia = isset($_POST['tem_ia']) ? 1 : 0;
                 
-                $stmt = $pdo->prepare("INSERT INTO planos (nome, preco, descricao, recursos, limite_leads, limite_mensagens, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
-                $stmt->execute([$nome, $preco, $descricao, $recursos, $limite_leads, $limite_mensagens]);
+                $stmt = $pdo->prepare("INSERT INTO planos (nome, preco, descricao, recursos, limite_leads, limite_mensagens, stripe_price_id, tem_ia, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+                $stmt->execute([$nome, $preco, $descricao, $recursos, $limite_leads, $limite_mensagens, $stripe_price_id, $tem_ia]);
                 $_SESSION['mensagem'] = "Plano adicionado com sucesso!";
                 break;
 
@@ -31,15 +34,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $recursos = isset($_POST['recursos']) ? json_encode($_POST['recursos']) : '[]';
                 $limite_leads = $_POST['limite_leads'];
                 $limite_mensagens = $_POST['limite_mensagens'];
+                $stripe_price_id = $_POST['stripe_price_id'];
+                $tem_ia = isset($_POST['tem_ia']) ? 1 : 0;
                 
-                $stmt = $pdo->prepare("UPDATE planos SET nome = ?, preco = ?, descricao = ?, recursos = ?, limite_leads = ?, limite_mensagens = ? WHERE id = ?");
-                $stmt->execute([$nome, $preco, $descricao, $recursos, $limite_leads, $limite_mensagens, $id]);
+                $stmt = $pdo->prepare("UPDATE planos SET nome = ?, preco = ?, descricao = ?, recursos = ?, limite_leads = ?, limite_mensagens = ?, stripe_price_id = ?, tem_ia = ? WHERE id = ?");
+                $stmt->execute([$nome, $preco, $descricao, $recursos, $limite_leads, $limite_mensagens, $stripe_price_id, $tem_ia, $id]);
                 $_SESSION['mensagem'] = "Plano atualizado com sucesso!";
                 break;
 
             case 'delete':
                 $id = $_POST['id'];
-                // Verificar se existem usuários usando este plano
                 $usuarios = $pdo->prepare("SELECT COUNT(*) FROM usuarios WHERE plano_id = ?");
                 $usuarios->execute([$id]);
                 if ($usuarios->fetchColumn() > 0) {
@@ -159,6 +163,8 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
                                     <ul class="list-unstyled">
                                         <li><i class="fas fa-users"></i> Limite de Leads: <?php echo $plano['limite_leads']; ?></li>
                                         <li><i class="fas fa-envelope"></i> Limite de Mensagens: <?php echo $plano['limite_mensagens']; ?></li>
+                                        <li><i class="fab fa-stripe"></i> ID Stripe: <?php echo $plano['stripe_price_id']; ?></li>
+                                        <li><i class="fas fa-robot"></i> IA: <?php echo $plano['tem_ia'] ? 'Sim' : 'Não'; ?></li>
                                     </ul>
                                     <div class="btn-group">
                                         <button class="btn btn-sm btn-info" onclick="editPlan(<?php echo htmlspecialchars(json_encode($plano)); ?>)">
@@ -203,12 +209,23 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
                             <textarea name="descricao" class="form-control" rows="3" required></textarea>
                         </div>
                         <div class="form-group">
+                            <label>ID do Produto Stripe</label>
+                            <input type="text" name="stripe_price_id" class="form-control" required>
+                            <small class="form-text text-muted">Insira o ID do produto criado no Stripe (ex: price_H5ggYwtDq4fbrJ)</small>
+                        </div>
+                        <div class="form-group">
                             <label>Limite de Leads</label>
                             <input type="number" name="limite_leads" class="form-control" required>
                         </div>
                         <div class="form-group">
                             <label>Limite de Mensagens</label>
                             <input type="number" name="limite_mensagens" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" name="tem_ia" value="1">
+                                Incluir Assistente de IA
+                            </label>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -246,13 +263,11 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
                             <label>Descrição</label>
                             <textarea name="descricao" id="edit-descricao" class="form-control" rows="3" required></textarea>
                         </div>
-
                         <div class="form-group">
-    <label>
-        <input type="checkbox" name="tem_ia" value="1"> 
-        Incluir Assistente de IA
-    </label>
-</div>
+                            <label>ID do Produto Stripe</label>
+                            <input type="text" name="stripe_price_id" id="edit-stripe-price-id" class="form-control" required>
+                            <small class="form-text text-muted">Insira o ID do produto criado no Stripe (ex: price_H5ggYwtDq4fbrJ)</small>
+                        </div>
                         <div class="form-group">
                             <label>Limite de Leads</label>
                             <input type="number" name="limite_leads" id="edit-limite-leads" class="form-control" required>
@@ -260,6 +275,12 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
                         <div class="form-group">
                             <label>Limite de Mensagens</label>
                             <input type="number" name="limite_mensagens" id="edit-limite-mensagens" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" name="tem_ia" id="edit-tem-ia" value="1">
+                                Incluir Assistente de IA
+                            </label>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -270,8 +291,6 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
             </div>
         </div>
     </div>
-
-    
 
     <!-- Form para exclusão -->
     <form id="deleteForm" method="POST" style="display: none;">
@@ -289,8 +308,10 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
             document.getElementById('edit-nome').value = plano.nome;
             document.getElementById('edit-preco').value = plano.preco;
             document.getElementById('edit-descricao').value = plano.descricao;
+            document.getElementById('edit-stripe-price-id').value = plano.stripe_price_id;
             document.getElementById('edit-limite-leads').value = plano.limite_leads;
             document.getElementById('edit-limite-mensagens').value = plano.limite_mensagens;
+            document.getElementById('edit-tem-ia').checked = plano.tem_ia == 1;
             $('#editPlanModal').modal('show');
         }
 
