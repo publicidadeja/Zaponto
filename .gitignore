@@ -1,0 +1,9 @@
+.env
+*.log
+.wwebjs_auth/
+.wwebjs_cache/
+whatsapp-service/.wwebjs_auth/
+whatsapp-service/.wwebjs_cache/
+node_modules/
+whatsapp-service/node_modules/
+uploads/
