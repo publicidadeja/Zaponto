@@ -69,5 +69,17 @@ function verificarLimitesUsuario($pdo, $usuario_id) {
     ];
 }
 
+function verificarAcessoPermitido($pdo, $usuario_id) {
+    $teste = verificarPeriodoTeste($pdo, $usuario_id);
+    $assinatura = verificarAssinaturaAtiva($pdo, $usuario_id);
+    
+    if (!$teste && !$assinatura) {
+        header('Location: planos.php');
+        exit;
+    }
+    
+    return true;
+}
+
 
 ?>
