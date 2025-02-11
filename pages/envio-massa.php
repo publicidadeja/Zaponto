@@ -4,7 +4,9 @@ session_start();
 if(isset($_FILES['arquivo']) && $_FILES['arquivo']['error'] === 0) {
     $arquivo_temp = $_FILES['arquivo']['tmp_name'];
     $nome_arquivo = $_FILES['arquivo']['name'];
-    $caminho_destino = '../uploads/' . $nome_arquivo;
+    $extensao = strtolower(pathinfo($nome_arquivo, PATHINFO_EXTENSION));
+    $nome_final = uniqid('file_') . '_' . time() . '.' . $extensao;
+    $caminho_destino = '../uploads/' . $nome_final;
     
     if(move_uploaded_file($arquivo_temp, $caminho_destino)) {
         $_SESSION['arquivo_midia'] = $caminho_destino;
@@ -130,61 +132,104 @@ if (empty($erros_envio)) {
             $mensagem_personalizada = str_replace(
                 ['{nome}', '{numero}'], 
                 [$lead['nome'], $lead['numero']], 
-                $mensagem_base
+                $_POST['mensagem']
             );
-    
-            // Preparar dados para envio
-            $data = [
+
+            // Primeiro envio: Mídia (se existir)
+            if (isset($_SESSION['arquivo_midia']) && !empty($_SESSION['arquivo_midia'])) {
+                $arquivo_path = $_SESSION['arquivo_midia'];
+                if (file_exists($arquivo_path)) {
+                    // Preparar dados para envio da mídia
+                    $data_midia = [
+                        'deviceId' => $_POST['dispositivo_id'],
+                        'number' => formatarNumeroWhatsApp($lead['numero']),
+                        'mediaPath' => realpath($arquivo_path),
+                        'mediaType' => mime_content_type($arquivo_path),
+                        'message' => '' // Enviar mídia sem texto
+                    ];
+
+                    // Enviar mídia
+                    $ch = curl_init('http://localhost:3000/send-message');
+                    curl_setopt_array($ch, [
+                        CURLOPT_POST => true,
+                        CURLOPT_POSTFIELDS => json_encode($data_midia),
+                        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_TIMEOUT => 30
+                    ]);
+
+                    $response_midia = curl_exec($ch);
+                    $http_code_midia = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+
+                    if ($http_code_midia !== 200) {
+                        throw new Exception('Falha no envio da mídia');
+                    }
+
+                    // Intervalo inteligente após envio da mídia
+                    $intervalo = rand(5, 15);
+                    sleep($intervalo);
+                }
+            }
+
+            // Segundo envio: Texto
+            $data_texto = [
                 'deviceId' => $_POST['dispositivo_id'],
                 'number' => formatarNumeroWhatsApp($lead['numero']),
                 'message' => $mensagem_personalizada
             ];
-    
-            // Adicionar arquivo se existir
-            if (!empty($arquivo_path) && file_exists($arquivo_path)) {
-                $data['mediaPath'] = $arquivo_path;
-                $tipo_arquivo = mime_content_type($arquivo_path);
-                $data['mediaType'] = explode('/', $tipo_arquivo)[0];
-            }
-    
-            // Configurar requisição para API
+
+            // Enviar texto
             $ch = curl_init('http://localhost:3000/send-message');
             curl_setopt_array($ch, [
                 CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => json_encode($data),
+                CURLOPT_POSTFIELDS => json_encode($data_texto),
                 CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => 30
             ]);
 
-            // Executar requisição
-            $response = curl_exec($ch);
-            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $response_texto = curl_exec($ch);
+            $http_code_texto = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             
-            if ($response === false) {
+            if ($response_texto === false) {
                 throw new Exception('Erro CURL: ' . curl_error($ch));
             }
             
-            $result = json_decode($response, true);
+            $result = json_decode($response_texto, true);
             
-            if ($http_code == 200 && isset($result['success']) && $result['success']) {
+            if ($http_code_texto == 200 && isset($result['success']) && $result['success']) {
                 // Atualizar status do envio no banco
                 $stmt = $pdo->prepare("UPDATE leads_enviados SET 
                     status = 'ENVIADO',
                     data_envio = NOW(),
                     arquivo_enviado = ?
                     WHERE id = ?");
-                $stmt->execute([$arquivo_path ? $nome_final : null, $lead['id']]);
+                $stmt->execute([$arquivo_path ? basename($arquivo_path) : null, $lead['id']]);
                 
                 $total_enviados++;
+
+                // Sistema de intervalo inteligente entre mensagens
+                $hora_atual = (int)date('H');
+                if ($hora_atual >= 22 || $hora_atual < 6) {
+                    // Intervalo maior durante a madrugada
+                    $intervalo = rand(20, 30);
+                } else {
+                    // Intervalo normal durante o dia
+                    $intervalo = rand(5, 15);
+                }
+
+                // Adicionar variação aleatória extra
+                if (rand(1, 10) === 1) {
+                    $intervalo += rand(5, 10);
+                }
+
+                sleep($intervalo);
             } else {
                 throw new Exception('Falha no envio: ' . ($result['message'] ?? 'Erro desconhecido'));
             }
 
             curl_close($ch);
-
-            // Intervalo entre envios para evitar bloqueio
-            sleep(rand(2, 5));
 
         } catch (Exception $e) {
             $falhas_envio++;
@@ -196,8 +241,14 @@ if (empty($erros_envio)) {
                 erro_mensagem = ?
                 WHERE id = ?");
             $stmt->execute([$e->getMessage(), $lead['id']]);
+
+            // Intervalo extra em caso de erro
+            sleep(rand(10, 20));
         }
     }
+
+    // Limpar a sessão após o envio
+    unset($_SESSION['arquivo_midia']);
 
     // Atualizar estatísticas do envio
     $_SESSION['total_enviados'] = $total_enviados;
@@ -339,7 +390,7 @@ if (empty($erros_envio)) {
             background: #fff;
             border-radius: var(--border-radius);
             box-shadow: var(--card-shadow);
-            padding: 2rem;
+            padding: 10rem;
             margin-top: 2rem;
         }
 

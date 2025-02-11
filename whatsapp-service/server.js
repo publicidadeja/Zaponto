@@ -5,6 +5,9 @@ const mysql = require('mysql2/promise');
 const path = require('path');
 const fs = require('fs');
 const app = express();
+const { MessageMedia } = require('whatsapp-web.js');
+const ALLOWED_MEDIA_TYPES = ['image', 'video', 'document', 'audio'];
+const MAX_FILE_SIZE = 16 * 1024 * 1024; // 16MB - limite do WhatsApp
 
 app.use(express.json());
 
@@ -114,39 +117,72 @@ app.post('/process-queue', async (req, res) => {
     }
 });
 
+// Adicione estas funções de utilidade no server.js
+function validateMediaPath(mediaPath) {
+    if (!mediaPath) return false;
+    if (!fs.existsSync(mediaPath)) return false;
+    
+    // Verifica se o arquivo é acessível
+    try {
+        fs.accessSync(mediaPath, fs.constants.R_OK);
+        return true;
+    } catch (err) {
+        console.error('Erro ao acessar arquivo:', err);
+        return false;
+    }
+}
+
+function getMediaType(filePath) {
+    const mimeType = require('mime-types').lookup(filePath);
+    if (!mimeType) return null;
+    return mimeType.split('/')[0]; // retorna 'image', 'video', etc
+}
+
+const logMediaSend = (mediaPath, number, success, error = null) => {
+    const logEntry = {
+        timestamp: new Date().toISOString(),
+        mediaPath,
+        number,
+        success,
+        error: error ? error.message : null
+    };
+    
+    console.log('Log de envio de mídia:', logEntry);
+    
+    // Opcional: salvar logs em arquivo
+    fs.appendFileSync(
+        'media_logs.txt', 
+        JSON.stringify(logEntry) + '\n'
+    );
+};
+
 
 app.post('/send-message', async (req, res) => {
-    const { deviceId, number, message, mediaPath } = req.body;
-
     try {
-        const client = clients.get(deviceId);
+        const { deviceId, number, message, mediaPath, mediaType } = req.body;
+        const client = activeClients.get(deviceId);
+
         if (!client) {
-            throw new Error('Dispositivo não encontrado ou não conectado');
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Cliente WhatsApp não encontrado' 
+            });
         }
 
-        let formattedNumber = number;
-        if (!formattedNumber.includes('@c.us')) {
-            formattedNumber = `${formattedNumber}@c.us`;
-        }
-
-        // Enviar arquivo se existir
-        if (mediaPath) {
+        // Primeiro envia a mídia (se existir)
+        if (mediaPath && mediaType) {
             try {
                 // Verifica se o arquivo existe
                 if (!fs.existsSync(mediaPath)) {
-                    throw new Error('Arquivo não encontrado: ' + mediaPath);
+                    throw new Error('Arquivo de mídia não encontrado');
                 }
 
-                console.log('Enviando mídia:', mediaPath);
-                const media = MessageMedia.fromFilePath(mediaPath);
-                
-                // Envia a mídia primeiro
-                await client.sendMessage(formattedNumber, media);
-                
-                // Pequeno intervalo após envio de mídia
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                console.log('Mídia enviada com sucesso');
+                // Envia a mídia
+                const mediaFile = MessageMedia.fromFilePath(mediaPath);
+                await client.sendMessage(number, mediaFile);
+
+                // Aguarda um pequeno intervalo antes de enviar a mensagem
+                await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (mediaError) {
                 console.error('Erro ao enviar mídia:', mediaError);
                 return res.status(500).json({
@@ -156,26 +192,18 @@ app.post('/send-message', async (req, res) => {
             }
         }
 
-        // Enviar mensagem de texto se existir
+        // Envia a mensagem de texto (se existir)
         if (message && message.trim()) {
-            try {
-                await client.sendMessage(formattedNumber, message);
-                console.log('Mensagem de texto enviada com sucesso');
-            } catch (messageError) {
-                console.error('Erro ao enviar mensagem:', messageError);
-                return res.status(500).json({
-                    success: false,
-                    message: 'Erro ao enviar mensagem: ' + messageError.message
-                });
-            }
+            await client.sendMessage(number, message);
         }
 
-        res.json({ success: true });
+        res.json({ success: true, message: 'Mensagem enviada com sucesso' });
+
     } catch (error) {
-        console.error('Erro geral:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message
+        console.error('Erro ao enviar mensagem:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erro ao enviar mensagem: ' + error.message 
         });
     }
 });
