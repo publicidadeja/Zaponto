@@ -51,6 +51,7 @@ if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.
                 </div>
             </div>
         </div>
+
         <hr class="footer-divider">
         <div class="footer-bottom">
             <p class="copyright">© <?php echo date('Y'); ?> ZapLocal. Todos os direitos reservados.</p>
@@ -60,6 +61,8 @@ if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.
             </div>
         </div>
     </div>
+
+    
 </footer>
 
 <!-- Scripts padrão -->
