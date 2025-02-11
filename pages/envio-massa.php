@@ -132,38 +132,27 @@ if (empty($erros_envio)) {
                 [$lead['nome'], $lead['numero']], 
                 $mensagem_base
             );
-
+    
             // Preparar dados para envio
-            $dados_envio = [
-                'deviceId' => $_POST['dispositivo'],
-                'number' => formatarNumeroWhatsApp($numero),
-                'message' => $mensagem
+            $data = [
+                'deviceId' => $_POST['dispositivo_id'],
+                'number' => formatarNumeroWhatsApp($lead['numero']),
+                'message' => $mensagem_personalizada
             ];
-
-            if(isset($_SESSION['arquivo_midia']) && file_exists($_SESSION['arquivo_midia'])) {
-                $dados_envio['mediaPath'] = $_SESSION['arquivo_midia'];
-                $tipo_arquivo = mime_content_type($_SESSION['arquivo_midia']);
-                $dados_envio['mediaType'] = explode('/', $tipo_arquivo)[0];
-            }
-
+    
             // Adicionar arquivo se existir
             if (!empty($arquivo_path) && file_exists($arquivo_path)) {
                 $data['mediaPath'] = $arquivo_path;
-                
-                // Verificar tipo de mídia
-                $mime_type = mime_content_type($arquivo_path);
-                $data['mediaType'] = explode('/', $mime_type)[0]; // 'image', 'application', etc
+                $tipo_arquivo = mime_content_type($arquivo_path);
+                $data['mediaType'] = explode('/', $tipo_arquivo)[0];
             }
-
+    
             // Configurar requisição para API
             $ch = curl_init('http://localhost:3000/send-message');
             curl_setopt_array($ch, [
                 CURLOPT_POST => true,
                 CURLOPT_POSTFIELDS => json_encode($data),
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/json',
-                    'Authorization: Bearer ' . $token // Se necessário
-                ],
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => 30
             ]);
