@@ -16,8 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $preco = $_POST['preco'];
                 $descricao = $_POST['descricao'];
                 $recursos = isset($_POST['recursos']) ? json_encode($_POST['recursos']) : '[]';
-                $limite_leads = $_POST['limite_leads'];
-                $limite_mensagens = $_POST['limite_mensagens'];
+                $limite_leads = isset($_POST['leads_ilimitado']) ? -1 : $_POST['limite_leads'];
+                $limite_mensagens = isset($_POST['mensagens_ilimitado']) ? -1 : $_POST['limite_mensagens'];
                 $stripe_price_id = $_POST['stripe_price_id'];
                 $tem_ia = isset($_POST['tem_ia']) ? 1 : 0;
                 
@@ -32,8 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $preco = $_POST['preco'];
                 $descricao = $_POST['descricao'];
                 $recursos = isset($_POST['recursos']) ? json_encode($_POST['recursos']) : '[]';
-                $limite_leads = $_POST['limite_leads'];
-                $limite_mensagens = $_POST['limite_mensagens'];
+                $limite_leads = isset($_POST['leads_ilimitado']) ? -1 : $_POST['limite_leads'];
+                $limite_mensagens = isset($_POST['mensagens_ilimitado']) ? -1 : $_POST['limite_mensagens'];
                 $stripe_price_id = $_POST['stripe_price_id'];
                 $tem_ia = isset($_POST['tem_ia']) ? 1 : 0;
                 
@@ -161,8 +161,14 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
                                     </h6>
                                     <p class="card-text"><?php echo htmlspecialchars($plano['descricao']); ?></p>
                                     <ul class="list-unstyled">
-                                        <li><i class="fas fa-users"></i> Limite de Leads: <?php echo $plano['limite_leads']; ?></li>
-                                        <li><i class="fas fa-envelope"></i> Limite de Mensagens: <?php echo $plano['limite_mensagens']; ?></li>
+                                        <li>
+                                            <i class="fas fa-users"></i> Limite de Leads: 
+                                            <?php echo $plano['limite_leads'] == -1 ? 'Ilimitado' : number_format($plano['limite_leads']); ?>
+                                        </li>
+                                        <li>
+                                            <i class="fas fa-envelope"></i> Limite de Mensagens: 
+                                            <?php echo $plano['limite_mensagens'] == -1 ? 'Ilimitado' : number_format($plano['limite_mensagens']); ?>
+                                        </li>
                                         <li><i class="fab fa-stripe"></i> ID Stripe: <?php echo $plano['stripe_price_id']; ?></li>
                                         <li><i class="fas fa-robot"></i> IA: <?php echo $plano['tem_ia'] ? 'Sim' : 'Não'; ?></li>
                                     </ul>
@@ -215,11 +221,27 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
                         </div>
                         <div class="form-group">
                             <label>Limite de Leads</label>
-                            <input type="number" name="limite_leads" class="form-control" required>
+                            <div class="input-group">
+                                <input type="number" name="limite_leads" class="form-control" id="add-limite-leads">
+                                <div class="input-group-append">
+                                    <div class="input-group-text">
+                                        <input type="checkbox" name="leads_ilimitado" id="add-leads-ilimitado" onchange="toggleLimiteLeads('add')">
+                                        <label class="mb-0 ml-2">Ilimitado</label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label>Limite de Mensagens</label>
-                            <input type="number" name="limite_mensagens" class="form-control" required>
+                            <div class="input-group">
+                                <input type="number" name="limite_mensagens" class="form-control" id="add-limite-mensagens">
+                                <div class="input-group-append">
+                                    <div class="input-group-text">
+                                        <input type="checkbox" name="mensagens_ilimitado" id="add-mensagens-ilimitado" onchange="toggleLimiteMensagens('add')">
+                                        <label class="mb-0 ml-2">Ilimitado</label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label>
@@ -270,11 +292,27 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
                         </div>
                         <div class="form-group">
                             <label>Limite de Leads</label>
-                            <input type="number" name="limite_leads" id="edit-limite-leads" class="form-control" required>
+                            <div class="input-group">
+                                <input type="number" name="limite_leads" class="form-control" id="edit-limite-leads">
+                                <div class="input-group-append">
+                                    <div class="input-group-text">
+                                        <input type="checkbox" name="leads_ilimitado" id="edit-leads-ilimitado" onchange="toggleLimiteLeads('edit')">
+                                        <label class="mb-0 ml-2">Ilimitado</label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label>Limite de Mensagens</label>
-                            <input type="number" name="limite_mensagens" id="edit-limite-mensagens" class="form-control" required>
+                            <div class="input-group">
+                                <input type="number" name="limite_mensagens" class="form-control" id="edit-limite-mensagens">
+                                <div class="input-group-append">
+                                    <div class="input-group-text">
+                                        <input type="checkbox" name="mensagens_ilimitado" id="edit-mensagens-ilimitado" onchange="toggleLimiteMensagens('edit')">
+                                        <label class="mb-0 ml-2">Ilimitado</label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label>
@@ -303,14 +341,49 @@ $planos = $pdo->query("SELECT * FROM planos ORDER BY preco ASC")->fetchAll();
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     
     <script>
+        function toggleLimiteLeads(prefix) {
+            const checkbox = document.getElementById(`${prefix}-leads-ilimitado`);
+            const input = document.getElementById(`${prefix}-limite-leads`);
+            
+            if (checkbox.checked) {
+                input.value = '';
+                input.disabled = true;
+            } else {
+                input.disabled = false;
+            }
+        }
+
+        function toggleLimiteMensagens(prefix) {
+            const checkbox = document.getElementById(`${prefix}-mensagens-ilimitado`);
+            const input = document.getElementById(`${prefix}-limite-mensagens`);
+            
+            if (checkbox.checked) {
+                input.value = '';
+                input.disabled = true;
+            } else {
+                input.disabled = false;
+            }
+        }
+
         function editPlan(plano) {
             document.getElementById('edit-id').value = plano.id;
             document.getElementById('edit-nome').value = plano.nome;
             document.getElementById('edit-preco').value = plano.preco;
             document.getElementById('edit-descricao').value = plano.descricao;
             document.getElementById('edit-stripe-price-id').value = plano.stripe_price_id;
-            document.getElementById('edit-limite-leads').value = plano.limite_leads;
-            document.getElementById('edit-limite-mensagens').value = plano.limite_mensagens;
+            
+            // Configurar limite de leads
+            const leadsIlimitado = plano.limite_leads === -1;
+            document.getElementById('edit-leads-ilimitado').checked = leadsIlimitado;
+            document.getElementById('edit-limite-leads').value = leadsIlimitado ? '' : plano.limite_leads;
+            document.getElementById('edit-limite-leads').disabled = leadsIlimitado;
+            
+            // Configurar limite de mensagens
+            const mensagensIlimitado = plano.limite_mensagens === -1;
+            document.getElementById('edit-mensagens-ilimitado').checked = mensagensIlimitado;
+            document.getElementById('edit-limite-mensagens').value = mensagensIlimitado ? '' : plano.limite_mensagens;
+            document.getElementById('edit-limite-mensagens').disabled = mensagensIlimitado;
+            
             document.getElementById('edit-tem-ia').checked = plano.tem_ia == 1;
             $('#editPlanModal').modal('show');
         }

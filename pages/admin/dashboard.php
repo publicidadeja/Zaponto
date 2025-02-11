@@ -31,35 +31,93 @@ $stats_mensagens = $pdo->query("
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Administrativo</title>
+    <title>Painel Administrativo - ZapLocal</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
     <style>
-        .sidebar {
-            background-color: #343a40;
-            min-height: 100vh;
-            padding: 20px 0;
+        :root {
+            --primary-color: #3547DB;
+            --primary-hover: #283593;
+            --success-color: #2CC149;
+            --background-color: #f7f9fc;
+            --text-color: #364a63;
+            --border-color: #e2e8f0;
+            --card-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.05);
+            --border-radius: 10px;
         }
-        .sidebar ul {
-            list-style: none;
-            padding: 0;
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: 'Nunito', sans-serif;
         }
-        .sidebar ul li {
-            padding: 10px 20px;
+
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: margin-left 0.3s;
         }
-        .sidebar ul li a {
-            color: #fff;
-            text-decoration: none;
+
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+            }
         }
-        .sidebar ul li a:hover {
-            color: #17a2b8;
-        }
+
         .card {
-            margin-bottom: 20px;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+            margin-bottom: 1.5rem;
         }
+
         .stats-card {
-            background-color: #17a2b8;
+            background: linear-gradient(45deg, var(--primary-color), var(--primary-hover));
             color: white;
+        }
+
+        .stats-card .card-body {
+            position: relative;
+            padding: 1.5rem;
+        }
+
+        .stats-card i {
+            position: absolute;
+            right: 1.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.5;
+        }
+
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table th {
+            border-top: none;
+            font-weight: 600;
+        }
+
+        .card-header {
+            background-color: transparent;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+        }
+
+        .card-header h5 {
+            margin-bottom: 0;
+            color: var(--text-color);
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
         }
     </style>
 </head>
@@ -67,21 +125,10 @@ $stats_mensagens = $pdo->query("
     <div class="container-fluid">
         <div class="row">
             <!-- Menu Lateral -->
-            <div class="col-md-3">
-                <div class="sidebar">
-                    <ul>
-                        <li><a href="dashboard.php"><i class="fas fa-home"></i> Dashboard</a></li>
-                        <li><a href="usuarios.php"><i class="fas fa-users"></i> Usuários</a></li>
-                        <li><a href="planos.php"><i class="fas fa-box"></i> Planos</a></li>
-                        <li><a href="relatorios.php"><i class="fas fa-chart-bar"></i> Relatórios</a></li>
-                        <li><a href="configuracoes.php"><i class="fas fa-cog"></i> Configurações</a></li>
-                        <li><a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
-                    </ul>
-                </div>
-            </div>
+            <?php include 'menu.php'; ?>
 
-            <!-- Conteúdo -->
-            <div class="col-md-9 py-4">
+            <!-- Conteúdo Principal -->
+            <div class="main-content">
                 <h2 class="mb-4">Dashboard</h2>
                 
                 <!-- Cards de Estatísticas -->
@@ -116,56 +163,72 @@ $stats_mensagens = $pdo->query("
                 </div>
 
                 <!-- Últimos Usuários -->
-                <div class="card mt-4">
-                    <div class="card-header">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5>Últimos Usuários Cadastrados</h5>
+                        <a href="usuarios.php" class="btn btn-sm btn-primary">Ver Todos</a>
                     </div>
                     <div class="card-body">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Nome</th>
-                                    <th>Email</th>
-                                    <th>Data de Cadastro</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($ultimos_usuarios as $usuario): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($usuario['nome']); ?></td>
-                                    <td><?php echo htmlspecialchars($usuario['email']); ?></td>
-                                    <td><?php echo date('d/m/Y H:i', strtotime($usuario['created_at'])); ?></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Email</th>
+                                        <th>Data de Cadastro</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($ultimos_usuarios as $usuario): ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($usuario['nome']); ?></td>
+                                        <td><?php echo htmlspecialchars($usuario['email']); ?></td>
+                                        <td><?php echo date('d/m/Y H:i', strtotime($usuario['created_at'])); ?></td>
+                                        <td>
+                                            <a href="editar-usuario.php?id=<?php echo $usuario['id']; ?>" class="btn btn-sm btn-info">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Últimas Mensagens -->
-                <div class="card mt-4">
-                    <div class="card-header">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5>Últimas Mensagens Enviadas</h5>
+                        <a href="mensagens.php" class="btn btn-sm btn-primary">Ver Todas</a>
                     </div>
                     <div class="card-body">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Usuário</th>
-                                    <th>Mensagem</th>
-                                    <th>Data de Envio</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($ultimas_mensagens as $mensagem): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($mensagem['usuario_id']); ?></td>
-                                    <td><?php echo htmlspecialchars($mensagem['mensagem']); ?></td>
-                                    <td><?php echo date('d/m/Y H:i', strtotime($mensagem['data_envio'])); ?></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Usuário</th>
+                                        <th>Mensagem</th>
+                                        <th>Data de Envio</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($ultimas_mensagens as $mensagem): ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($mensagem['usuario_id']); ?></td>
+                                        <td><?php echo htmlspecialchars(substr($mensagem['mensagem'], 0, 50)) . '...'; ?></td>
+                                        <td><?php echo date('d/m/Y H:i', strtotime($mensagem['data_envio'])); ?></td>
+                                        <td>
+                                            <span class="badge badge-success">Enviado</span>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -175,5 +238,14 @@ $stats_mensagens = $pdo->query("
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        // Script para toggle do menu em dispositivos móveis
+        $(document).ready(function() {
+            $('#sidebarCollapse').on('click', function() {
+                $('.sidebar').toggleClass('active');
+                $('.main-content').toggleClass('active');
+            });
+        });
+    </script>
 </body>
 </html>
