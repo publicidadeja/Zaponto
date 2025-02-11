@@ -3,7 +3,7 @@ $page_title = "Planos e Preços";
 require_once '../includes/header.php';
 
 // Buscar planos do banco de dados
-$stmt = $pdo->query("SELECT * FROM planos WHERE ativo = 1 ORDER BY preco ASC");
+$stmt = $pdo->query("SELECT * FROM planos WHERE ativo = 1 AND id != 4 ORDER BY preco ASC");
 $planos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 

@@ -38,28 +38,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 // Data atual e data de término do teste
                 $data_atual = new DateTime();
                 $data_fim_teste = (new DateTime())->modify('+7 days');
-
+            
                 // Insere o novo usuário
-                $stmt = $pdo->prepare("INSERT INTO usuarios (nome, email, senha, telefone, status, data_cadastro) VALUES (?, ?, ?, ?, 'ativo', NOW())");
-                $stmt->execute([$nome, $email, $senha_hash, $telefone]);
-                $usuario_id = $pdo->lastInsertId();
+                $stmt = $pdo->prepare("INSERT INTO usuarios (nome, email, senha, telefone, status, created_at) VALUES (?, ?, ?, ?, 'ativo', NOW())");
 
+                if (!$stmt->execute([$nome, $email, $senha_hash, $telefone])) {
+                    throw new Exception("Erro ao inserir usuário: " . print_r($stmt->errorInfo(), true));
+                }
+                $usuario_id = $pdo->lastInsertId();
+            
                 // Insere o período de teste
-                $stmt = $pdo->prepare("INSERT INTO assinaturas (usuario_id, plano_id, status, data_inicio, data_fim, is_trial, limite_leads, limite_mensagens, tem_ia) VALUES (?, 0, 'ativo', ?, ?, 1, ?, ?, ?)");
-                $stmt->execute([
+                $stmt = $pdo->prepare("INSERT INTO assinaturas (usuario_id, plano_id, status, data_inicio, data_fim, is_trial, limite_leads, limite_mensagens, tem_ia) VALUES (?, 4, 'ativo', ?, ?, 1, ?, ?, ?)");
+                if (!$stmt->execute([
                     $usuario_id,
                     $data_atual->format('Y-m-d H:i:s'),
                     $data_fim_teste->format('Y-m-d H:i:s'),
                     $plano_teste['limite_leads'],
                     $plano_teste['limite_mensagens'],
                     $plano_teste['tem_ia']
-                ]);
-
+                ])) {
+                    throw new Exception("Erro ao inserir assinatura: " . print_r($stmt->errorInfo(), true));
+                }
+            
                 $pdo->commit();
                 $sucesso_cadastro = "Cadastro realizado com sucesso! <a href='login.php'>Clique aqui para fazer login</a>.";
             } catch (Exception $e) {
                 $pdo->rollBack();
-                $erro_cadastro = "Erro ao cadastrar usuário. Tente novamente mais tarde.";
+                $erro_cadastro = "Erro ao cadastrar usuário: " . $e->getMessage();
+                // Para debug:
+                error_log("Erro no cadastro: " . $e->getMessage());
             }
         }
     }
