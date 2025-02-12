@@ -4,12 +4,15 @@ include '../includes/auth.php';
 redirecionarSeNaoLogado();
 include '../includes/db.php';
 
-// Consultar o status do perfil diretamente do banco
-$stmt = $pdo->prepare("SELECT perfil_completo FROM usuarios WHERE id = ?");
+// Consultar todos os dados do usuário
+$stmt = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
 $stmt->execute([$_SESSION['usuario_id']]);
-$usuario = $stmt->fetch();
+$usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if (!$usuario['perfil_completo']) {
+
+
+// Verificação mais segura
+if (!isset($usuario['perfil_completo']) || $usuario['perfil_completo'] == 0 || $usuario['perfil_completo'] == null) {
     include '../includes/modal_perfil.php';
 }
 
@@ -159,10 +162,7 @@ $extra_css = '
     }
 </style>';
 
-// Consultas originais mantidas
-$stmt = $pdo->prepare("SELECT nome FROM usuarios WHERE id = ?");
-$stmt->execute([$_SESSION['usuario_id']]);
-$usuario = $stmt->fetch();
+
 
 $stmt = $pdo->prepare("SELECT COUNT(*) AS total_leads FROM leads_enviados WHERE usuario_id = ?");
 $stmt->execute([$_SESSION['usuario_id']]);
