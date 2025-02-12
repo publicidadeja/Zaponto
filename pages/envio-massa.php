@@ -1,40 +1,15 @@
 <?php
 session_start();
 
-if(isset($_FILES['arquivo']) && $_FILES['arquivo']['error'] === 0) {
-    $arquivo_temp = $_FILES['arquivo']['tmp_name'];
-    $nome_arquivo = $_FILES['arquivo']['name'];
-    $extensao = strtolower(pathinfo($nome_arquivo, PATHINFO_EXTENSION));
-    $nome_final = uniqid('file_') . '_' . time() . '.' . $extensao;
-    $caminho_destino = '../uploads/' . $nome_final;
-    
-    if(move_uploaded_file($arquivo_temp, $caminho_destino)) {
-        $_SESSION['arquivo_midia'] = $caminho_destino;
-    }
-}
-
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php');
     exit;
 }
 
 include '../includes/db.php';
+include '../includes/functions.php';
 
-// Funções auxiliares (já existentes)
-function formatarNumeroWhatsApp($numero) {
-    $numero = preg_replace('/[^0-9]/', '', $numero);
-    if (!str_starts_with($numero, '55')) {
-        $numero = '55' . $numero;
-    }
-    return $numero;
-}
-
-function validarNumero($numero) {
-    $numero_limpo = preg_replace('/[^0-9]/', '', $numero);
-    return strlen($numero_limpo) >= 11 && strlen($numero_limpo) <= 13;
-}
-
-// Consultas iniciais (já existentes)
+// Fetch connected devices
 $stmt = $pdo->prepare("SELECT d.*, u.mensagem_base FROM dispositivos d 
                        JOIN usuarios u ON u.id = d.usuario_id 
                        WHERE d.usuario_id = ? AND d.status = 'CONNECTED' 
@@ -42,228 +17,135 @@ $stmt = $pdo->prepare("SELECT d.*, u.mensagem_base FROM dispositivos d
 $stmt->execute([$_SESSION['usuario_id']]);
 $dispositivos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Configuração da paginação
-$pagina = isset($_GET['pagina']) ? (int)$_GET['pagina'] : 1;
-$leads_por_pagina = 10;
-$offset = ($pagina - 1) * $leads_por_pagina;
-
-// Consulta para obter os leads com paginação
-$stmt = $pdo->prepare("SELECT id, nome, numero, data_envio, status FROM leads_enviados 
-                       WHERE usuario_id = ? 
-                       ORDER BY data_envio DESC 
-                       LIMIT ? OFFSET ?");
-$stmt->bindValue(1, $_SESSION['usuario_id'], PDO::PARAM_INT);
-$stmt->bindValue(2, $leads_por_pagina, PDO::PARAM_INT);
-$stmt->bindValue(3, $offset, PDO::PARAM_INT);
-$stmt->execute();
-$leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Consulta para obter o total de leads (para a paginação)
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM leads_enviados WHERE usuario_id = ?");
-$stmt->execute([$_SESSION['usuario_id']]);
-$total_leads = $stmt->fetchColumn();
-$total_paginas = ceil($total_leads / $leads_por_pagina);
-
-// Buscar mensagem base do usuário (já existente)
+// Get user's base message
 $stmt = $pdo->prepare("SELECT mensagem_base FROM usuarios WHERE id = ?");
 $stmt->execute([$_SESSION['usuario_id']]);
-$usuario = $stmt->fetch(PDO::FETCH_ASSOC);
+$usuario = $stmt->fetch();
 $mensagem_base = $usuario['mensagem_base'] ?? '';
 
-// Variáveis de controle (já existentes)
-$mensagem_enviada = false;
-$erros_envio = [];
-$total_enviados = 0;
-$arquivo_path = ''; // Inicializa o caminho do arquivo
+// Fetch all leads for the user
+$query = "SELECT l.*, d.nome as dispositivo_nome 
+          FROM leads_enviados l 
+          LEFT JOIN dispositivos d ON l.dispositivo_id = d.device_id 
+          WHERE l.usuario_id = :usuario_id";
+$stmt = $pdo->prepare($query);
+$stmt->execute(['usuario_id' => $_SESSION['usuario_id']]);
+$leads = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Processamento do formulário
+// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Validações iniciais (já existentes)
-    if (empty($_POST['dispositivo_id'])) {
-        $erros_envio[] = "Selecione um dispositivo para envio.";
-    }
+    $arquivo_path = '';
+    $erros_envio = []; // Inicializa o array de erros
 
-    if (empty($_POST['mensagem'])) {
-        $erros_envio[] = "O campo mensagem não pode estar vazio.";
-    }
-
-    
-   // Processamento do arquivo
-$arquivo_path = '';
-if (isset($_FILES['arquivo']) && $_FILES['arquivo']['error'] == UPLOAD_ERR_OK) {
-    $nome_temporario = $_FILES['arquivo']['tmp_name'];
-    $nome_arquivo = $_FILES['arquivo']['name'];
-    $extensao = strtolower(pathinfo($nome_arquivo, PATHINFO_EXTENSION));
-    $extensoes_permitidas = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
-    $max_file_size = 5 * 1024 * 1024; // 5MB
-
-    // Validações do arquivo
-    if (!in_array($extensao, $extensoes_permitidas)) {
-        $erros_envio[] = "Tipo de arquivo não permitido. Extensões aceitas: " . implode(', ', $extensoes_permitidas);
-    } elseif ($_FILES['arquivo']['size'] > $max_file_size) {
-        $erros_envio[] = "Arquivo muito grande. Tamanho máximo permitido: 5MB";
-    } else {
-        // Criar diretório de uploads se não existir
-        $upload_dir = '../uploads';
+    // Processamento do arquivo
+    if (isset($_FILES['arquivo']) && $_FILES['arquivo']['error'] === UPLOAD_ERR_OK) {
+        $upload_dir = '../uploads/';
+        $nome_arquivo = uniqid('file_') . '_' . time() . '_' . $_FILES['arquivo']['name'];
+        $arquivo_path = $upload_dir . $nome_arquivo;
+        
+        // Verificar e criar diretório de upload se não existir
         if (!file_exists($upload_dir)) {
             mkdir($upload_dir, 0777, true);
         }
-
-        // Gerar nome único para o arquivo
-        $nome_final = uniqid('file_') . '_' . time() . '.' . $extensao;
-        $arquivo_path = $upload_dir . '/' . $nome_final;
-
-        // Mover arquivo
-        if (!move_uploaded_file($nome_temporario, $arquivo_path)) {
-            $erros_envio[] = "Erro ao mover o arquivo para o servidor.";
-            $arquivo_path = '';
+        
+        // Tentar fazer o upload do arquivo
+        if (move_uploaded_file($_FILES['arquivo']['tmp_name'], $arquivo_path)) {
+            // Upload bem sucedido
+        } else {
+            $erros_envio[] = "Erro ao fazer upload do arquivo.";
+            $arquivo_path = ''; // Reset do caminho em caso de erro
         }
     }
-}
 
-// Processamento do envio em massa
-if (empty($erros_envio)) {
-    $total_enviados = 0;
-    $falhas_envio = 0;
+    $dispositivo_id = $_POST['dispositivo_id'] ?? '';
+    $mensagem = $_POST['mensagem'] ?? '';
+    $selected_leads = $_POST['selected_leads'] ?? [];
+    
+    // Validações iniciais
+    if (empty($dispositivo_id)) {
+        $erros_envio[] = "Selecione um dispositivo para envio.";
+    }
+    if (empty($mensagem)) {
+        $erros_envio[] = "A mensagem não pode estar vazia.";
+    }
+    if (empty($selected_leads)) {
+        $erros_envio[] = "Selecione pelo menos um lead para envio.";
+    }
 
-    foreach ($leads as $lead) {
-        try {
-            // Personalizar mensagem para cada lead
-            $mensagem_personalizada = str_replace(
-                ['{nome}', '{numero}'], 
-                [$lead['nome'], $lead['numero']], 
-                $_POST['mensagem']
-            );
+    if (empty($erros_envio)) {
+        // Buscar os leads selecionados do banco de dados
+        $placeholders = str_repeat('?,', count($selected_leads) - 1) . '?';
+        $stmt = $pdo->prepare("SELECT * FROM leads_enviados 
+                              WHERE id IN ($placeholders) 
+                              AND usuario_id = ?");
+        
+        $params = array_merge($selected_leads, [$_SESSION['usuario_id']]);
+        $stmt->execute($params);
+        $leads_to_process = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Primeiro envio: Mídia (se existir)
-            if (isset($_SESSION['arquivo_midia']) && !empty($_SESSION['arquivo_midia'])) {
-                $arquivo_path = $_SESSION['arquivo_midia'];
-                if (file_exists($arquivo_path)) {
-                    // Preparar dados para envio da mídia
-                    $data_midia = [
-                        'deviceId' => $_POST['dispositivo_id'],
-                        'number' => formatarNumeroWhatsApp($lead['numero']),
-                        'mediaPath' => realpath($arquivo_path),
-                        'mediaType' => mime_content_type($arquivo_path),
-                        'message' => '' // Enviar mídia sem texto
-                    ];
+        $success_count = 0;
+        $error_count = 0;
 
-                    // Enviar mídia
-                    $ch = curl_init('http://localhost:3000/send-message');
-                    curl_setopt_array($ch, [
-                        CURLOPT_POST => true,
-                        CURLOPT_POSTFIELDS => json_encode($data_midia),
-                        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-                        CURLOPT_RETURNTRANSFER => true,
-                        CURLOPT_TIMEOUT => 30
-                    ]);
+        foreach ($leads_to_process as $lead) {
+            try {
+                // Personalizar mensagem
+                $mensagem_personalizada = str_replace(
+                    ['{nome}', '{numero}'],
+                    [$lead['nome'], $lead['numero']],
+                    $mensagem
+                );
 
-                    $response_midia = curl_exec($ch);
-                    $http_code_midia = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
+                // Preparar dados para envio
+                $data = [
+                    'deviceId' => $dispositivo_id,
+                    'number' => formatarNumeroWhatsApp($lead['numero']),
+                    'message' => $mensagem_personalizada
+                ];
 
-                    if ($http_code_midia !== 200) {
-                        throw new Exception('Falha no envio da mídia');
-                    }
-
-                    // Intervalo inteligente após envio da mídia
-                    $intervalo = rand(5, 15);
-                    sleep($intervalo);
+                // Adicionar arquivo se existir
+                if (!empty($arquivo_path) && file_exists($arquivo_path)) {
+                    $data['mediaPath'] = $arquivo_path;
                 }
-            }
 
-            // Segundo envio: Texto
-            $data_texto = [
-                'deviceId' => $_POST['dispositivo_id'],
-                'number' => formatarNumeroWhatsApp($lead['numero']),
-                'message' => $mensagem_personalizada
-            ];
+                // Enviar mensagem
+                $ch = curl_init('http://localhost:3000/send-message');
+                curl_setopt_array($ch, [
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => json_encode($data),
+                    CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                    CURLOPT_RETURNTRANSFER => true
+                ]);
 
-            // Enviar texto
-            $ch = curl_init('http://localhost:3000/send-message');
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => json_encode($data_texto),
-                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => 30
-            ]);
-
-            $response_texto = curl_exec($ch);
-            $http_code_texto = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            
-            if ($response_texto === false) {
-                throw new Exception('Erro CURL: ' . curl_error($ch));
-            }
-            
-            $result = json_decode($response_texto, true);
-            
-            if ($http_code_texto == 200 && isset($result['success']) && $result['success']) {
-                // Atualizar status do envio no banco
-                $stmt = $pdo->prepare("UPDATE leads_enviados SET 
-                    status = 'ENVIADO',
-                    data_envio = NOW(),
-                    arquivo_enviado = ?
-                    WHERE id = ?");
-                $stmt->execute([$arquivo_path ? basename($arquivo_path) : null, $lead['id']]);
+                $response = curl_exec($ch);
+                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 
-                $total_enviados++;
-
-                // Sistema de intervalo inteligente entre mensagens
-                $hora_atual = (int)date('H');
-                if ($hora_atual >= 22 || $hora_atual < 6) {
-                    // Intervalo maior durante a madrugada
-                    $intervalo = rand(20, 30);
+                if ($http_code == 200) {
+                    // Atualizar status do lead
+                    $stmt = $pdo->prepare("UPDATE leads_enviados SET 
+                        status = 'ENVIADO',
+                        data_envio = NOW()
+                        WHERE id = ?");
+                    $stmt->execute([$lead['id']]);
+                    
+                    $success_count++;
+                    
+                    // Intervalo entre mensagens
+                    sleep(rand(2, 5));
                 } else {
-                    // Intervalo normal durante o dia
-                    $intervalo = rand(5, 15);
+                    throw new Exception('Erro ao enviar mensagem');
                 }
 
-                // Adicionar variação aleatória extra
-                if (rand(1, 10) === 1) {
-                    $intervalo += rand(5, 10);
-                }
+                curl_close($ch);
 
-                sleep($intervalo);
-            } else {
-                throw new Exception('Falha no envio: ' . ($result['message'] ?? 'Erro desconhecido'));
+            } catch (Exception $e) {
+                $error_count++;
+                error_log("Erro ao enviar mensagem para {$lead['numero']}: " . $e->getMessage());
+                $erros_envio[] = "Erro ao enviar mensagem para {$lead['numero']}: " . $e->getMessage();
             }
-
-            curl_close($ch);
-
-        } catch (Exception $e) {
-            $falhas_envio++;
-            $erros_envio[] = "Erro ao enviar para {$lead['numero']}: " . $e->getMessage();
-            
-            // Registrar falha no banco
-            $stmt = $pdo->prepare("UPDATE leads_enviados SET 
-                status = 'FALHA',
-                erro_mensagem = ?
-                WHERE id = ?");
-            $stmt->execute([$e->getMessage(), $lead['id']]);
-
-            // Intervalo extra em caso de erro
-            sleep(rand(10, 20));
         }
+
+        $_SESSION['mensagem'] = "Envio concluído: $success_count mensagens enviadas, $error_count falhas.";
     }
-
-    // Limpar a sessão após o envio
-    unset($_SESSION['arquivo_midia']);
-
-    // Atualizar estatísticas do envio
-    $_SESSION['total_enviados'] = $total_enviados;
-    $_SESSION['falhas_envio'] = $falhas_envio;
-    
-    // Retornar resultado
-    $response = [
-        'success' => true,
-        'total_enviados' => $total_enviados,
-        'falhas' => $falhas_envio,
-        'erros' => $erros_envio
-    ];
-    
-    echo json_encode($response);
-}
 }
 ?>
 
@@ -281,6 +163,8 @@ if (empty($erros_envio)) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- DataTables -->
+    <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
     <!-- Custom CSS (Material Design) -->
     <style>
         /* Cores ZapLocal */
@@ -390,7 +274,7 @@ if (empty($erros_envio)) {
             background: #fff;
             border-radius: var(--border-radius);
             box-shadow: var(--card-shadow);
-            padding: 10rem;
+            padding: 2rem;
             margin-top: 2rem;
         }
 
@@ -523,6 +407,14 @@ if (empty($erros_envio)) {
                 width: 100%;
             }
         }
+
+        /* Lead Selection Options */
+        .lead-selection-options {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background-color: #fff;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
@@ -535,6 +427,15 @@ if (empty($erros_envio)) {
                 <div class="form-container">
                     <h2 class="form-title"><i class="fas fa-paper-plane me-2"></i>Envio em Massa</h2>
 
+                    <?php if (isset($_SESSION['mensagem'])): ?>
+                        <div class="alert alert-success">
+                            <?php 
+                            echo $_SESSION['mensagem'];
+                            unset($_SESSION['mensagem']);
+                            ?>
+                        </div>
+                    <?php endif; ?>
+
                     <?php if (!empty($erros_envio)): ?>
                         <div class="alert alert-danger">
                             <ul class="mb-0">
@@ -546,29 +447,36 @@ if (empty($erros_envio)) {
                     <?php endif; ?>
 
                     <form id="massMessageForm" method="POST" enctype="multipart/form-data">
-                        <!-- Seleção de Dispositivo -->
+                        <!-- Device Selection -->
                         <div class="mb-3">
-                            <label for="dispositivo" class="form-label">Selecione o Dispositivo</label>
-                            <select class="form-select" name="dispositivo_id" id="dispositivo" required>
-                                <option value="">Selecione...</option>
+                            <label class="form-label">Dispositivo para Envio</label>
+                            <select name="dispositivo_id" class="form-select" required>
+                                <option value="">Selecione um dispositivo...</option>
                                 <?php foreach ($dispositivos as $dispositivo): ?>
                                     <option value="<?php echo htmlspecialchars($dispositivo['device_id']); ?>">
-                                        <?php echo htmlspecialchars($dispositivo['nome']); ?> 
-                                        (<?php echo htmlspecialchars($dispositivo['numero']); ?>)
+                                        <?php echo htmlspecialchars($dispositivo['nome']); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
 
-                        <!-- Seção de Mensagem com IA Assistant -->
-                        <div class="mb-4">
-                            <label for="mensagem" class="form-label">Mensagem</label>
+                        <!-- Lead Selection Button -->
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#leadSelectionModal">
+                                <i class="fas fa-users me-2"></i>Selecionar Leads
+                            </button>
+                            <span class="ms-3">Leads selecionados: <span id="selectedLeadsCount">0</span></span>
+                        </div>
+
+                        <!-- Message Input with AI Assistant -->
+                        <div class="mb-3">
+                            <label class="form-label">Mensagem</label>
                             <div class="d-flex justify-content-end mb-2">
                                 <button type="button" class="btn btn-outline-primary btn-sm me-2" id="btnSugestao">
                                     <i class="fas fa-magic"></i> Sugerir Melhorias
                                 </button>
                             </div>
-                            <textarea class="form-control" id="mensagem" name="mensagem" rows="4" required><?php echo htmlspecialchars($mensagem_base); ?></textarea>
+                            <textarea name="mensagem" id="mensagem" class="form-control" rows="4" required><?php echo htmlspecialchars($mensagem_base); ?></textarea>
                             <div class="form-text">Use {nome} para incluir o nome do lead na mensagem.</div>
                         </div>
 
@@ -596,82 +504,100 @@ if (empty($erros_envio)) {
                             </div>
                         </div>
 
-                        <!-- Upload de Arquivo -->
-                        <div class="mb-4">
-                            <label for="arquivo" class="form-label">Arquivo (opcional)</label>
-                            <div class="input-group">
-                                <input type="file" class="form-control" id="arquivo" name="arquivo">
-                                <button type="button" class="btn btn-outline-secondary" id="btnLimparArquivo">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                            <div class="form-text">Formatos permitidos: jpg, jpeg, png, pdf, doc, docx</div>
-                            <input type="hidden" id="caminhoArquivo" name="caminhoArquivo" value="<?php echo htmlspecialchars($arquivo_path); ?>">
+                        <!-- File Upload -->
+                        <div class="mb-3">
+                            <label class="form-label">Arquivo (opcional)</label>
+                            <input type="file" name="arquivo" class="form-control">
+                            <div class="form-text">Formatos suportados: jpg, jpeg, png, pdf</div>
                         </div>
 
-                        <!-- Botão de Envio -->
-                        <button type="submit" class="btn btn-primary" id="btnEnviar">
+                        <!-- Submit Button -->
+                        <button type="submit" class="btn btn-primary">
                             <i class="fas fa-paper-plane me-2"></i>Iniciar Envio
                         </button>
                     </form>
 
-                    <!-- Lista de Leads com Paginação -->
-                    <h4 class="mt-5">Lista de Leads</h4>
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Nome</th>
-                                    <th>Número</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($leads as $lead): ?>
-                                    <tr>
-                                        <td><?php echo htmlspecialchars($lead['nome']); ?></td>
-                                        <td><?php echo htmlspecialchars($lead['numero']); ?></td>
-                                        <td>
-                                            <?php 
-                                                $statusClass = isset($lead['status']) && $lead['status'] == 'ENVIADO' 
-                                                    ? 'success' 
-                                                    : 'warning';
-                                                $statusText = isset($lead['status']) 
-                                                    ? htmlspecialchars($lead['status']) 
-                                                    : 'PENDENTE';
-                                            ?>
-                                            <span class="badge bg-<?php echo $statusClass; ?>">
-                                                <?php echo $statusText; ?>
-                                            </span>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                    <!-- Progress Bar (hidden by default) -->
+                    <div id="progressSection" class="mt-4 d-none">
+                        <h5>Progresso do Envio</h5>
+                        <div class="progress">
+                            <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <p class="mt-2">Enviando mensagem <span id="currentCount">0</span> de <span id="totalCount">0</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lead Selection Modal -->
+    <div class="modal fade" id="leadSelectionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Selecionar Leads</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Selection Options -->
+                    <div class="lead-selection-options">
+                        <div class="form-check mb-2">
+                            <input type="radio" class="form-check-input" name="selectionType" id="selectAll" value="all">
+                            <label class="form-check-label" for="selectAll">Selecionar Todos os Leads</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input type="radio" class="form-check-input" name="selectionType" id="selectByDate" value="date">
+                            <label class="form-check-label" for="selectByDate">Selecionar por Data</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input type="radio" class="form-check-input" name="selectionType" id="selectManual" value="manual" checked>
+                            <label class="form-check-label" for="selectManual">Seleção Manual</label>
+                        </div>
+
+                        <!-- Date Range Selection (initially hidden) -->
+                        <div id="dateRangeSection" class="mt-3 d-none">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label">Data Início</label>
+                                    <input type="date" class="form-control" name="data_inicio">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Data Fim</label>
+                                    <input type="date" class="form-control" name="data_fim">
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Paginação -->
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination">
-                            <?php if ($total_paginas > 1): ?>
-                                <li class="page-item <?php echo ($pagina == 1) ? 'disabled' : ''; ?>">
-                                    <a class="page-link" href="?pagina=<?php echo $pagina - 1; ?>" aria-label="Anterior">
-                                        <span aria-hidden="true">«</span>
-                                    </a>
-                                </li>
-                                <?php for ($i = 1; $i <= $total_paginas; $i++): ?>
-                                    <li class="page-item <?php echo ($pagina == $i) ? 'active' : ''; ?>">
-                                        <a class="page-link" href="?pagina=<?php echo $i; ?>"><?php echo $i; ?></a>
-                                    </li>
-                                <?php endfor; ?>
-                                <li class="page-item <?php echo ($pagina == $total_paginas) ? 'disabled' : ''; ?>">
-                                    <a class="page-link" href="?pagina=<?php echo $pagina + 1; ?>" aria-label="Próximo">
-                                        <span aria-hidden="true">»</span>
-                                    </a>
-                                </li>
-                            <?php endif; ?>
-                        </ul>
-                    </nav>
+                    <!-- Leads Table -->
+                    <table id="leadsTable" class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAllCheckbox"></th>
+                                <th>Nome</th>
+                                <th>Número</th>
+                                <th>Status</th>
+                                <th>Data de Envio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($leads as $lead): ?>
+                            <tr>
+                                <td>
+                                    <input type="checkbox" name="selected_leads[]" value="<?php echo $lead['id']; ?>" class="lead-checkbox">
+                                </td>
+                                <td><?php echo htmlspecialchars($lead['nome']); ?></td>
+                                <td><?php echo htmlspecialchars($lead['numero']); ?></td>
+                                <td><?php echo htmlspecialchars($lead['status']); ?></td>
+                                <td><?php echo formatarData($lead['data_envio']); ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary" id="confirmLeadSelection">Confirmar Seleção</button>
                 </div>
             </div>
         </div>
@@ -680,6 +606,210 @@ if (empty($erros_envio)) {
     <?php include '../includes/footer.php'; ?>
 
     <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            // Initialize DataTable
+            const leadsTable = $('#leadsTable').DataTable({
+                language: {
+                    url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json'
+                }
+            });
+
+            // Garantir limpeza adequada quando o modal for fechado
+            $('#leadSelectionModal').on('hidden.bs.modal', function () {
+                $('body').removeClass('modal-open');
+                $('.modal-backdrop').remove();
+            });
+
+            // Handle selection type change
+            $('input[name="selectionType"]').change(function() {
+                const selectedType = $(this).val();
+                
+                // Reset all selections
+                $('.lead-checkbox').prop('checked', false);
+                $('#selectAllCheckbox').prop('checked', false);
+                
+                // Show/hide date range section
+                if (selectedType === 'date') {
+                    $('#dateRangeSection').removeClass('d-none');
+                } else {
+                    $('#dateRangeSection').addClass('d-none');
+                }
+                
+                // Handle "Select All" option
+                if (selectedType === 'all') {
+                    $('.lead-checkbox').prop('checked', true);
+                }
+                
+                updateSelectedCount();
+            });
+
+            // Handle "Select All" checkbox
+            $('#selectAllCheckbox').change(function() {
+                $('.lead-checkbox').prop('checked', $(this).prop('checked'));
+                updateSelectedCount();
+            });
+
+            // Handle individual checkboxes
+            $('.lead-checkbox').change(function() {
+                updateSelectedCount();
+            });
+
+            // Update selected count
+            function updateSelectedCount() {
+                const count = $('.lead-checkbox:checked').length;
+                $('#selectedLeadsCount').text(count);
+            }
+
+            // Handle form submission
+            $('#massMessageForm').submit(function(e) {
+                e.preventDefault();
+                
+                const selectedLeads = $('.lead-checkbox:checked').length;
+                if (selectedLeads === 0) {
+                    alert('Por favor, selecione pelo menos um lead para envio.');
+                    return false;
+                }
+
+                if (confirm(`Confirma o envio para ${selectedLeads} leads?`)) {
+                    // Show progress section
+                    $('#progressSection').removeClass('d-none');
+                    $('#totalCount').text(selectedLeads);
+                    
+                    // Submit the form
+                    this.submit();
+                }
+            });
+
+            // Handle date range selection
+            $('input[name="data_inicio"], input[name="data_fim"]').change(function() {
+                const dataInicio = $('input[name="data_inicio"]').val();
+                const dataFim = $('input[name="data_fim"]').val();
+                
+                if (dataInicio && dataFim) {
+                    $('.lead-checkbox').each(function() {
+                        const row = $(this).closest('tr');
+                        const dataEnvio = row.find('td:last').text();
+                        
+                        // Compare dates and check/uncheck accordingly
+                        // Note: You'll need to adjust the date comparison logic based on your date format
+                        $(this).prop('checked', true); // Simplified for example
+                    });
+                    
+                    updateSelectedCount();
+                }
+            });
+        });
+    </script>
+    <script>
+        $(document).ready(function() {
+            // Manipular o clique no botão "Confirmar Seleção"
+            $('#confirmLeadSelection').click(function() {
+                const selectedType = $('input[name="selectionType"]:checked').val();
+                let selectedCount = 0;
+                
+                switch(selectedType) {
+                    case 'all':
+                        // Selecionar todos os leads
+                        $('.lead-checkbox').prop('checked', true);
+                        selectedCount = $('.lead-checkbox').length;
+                        break;
+                        
+                    case 'date':
+                        // Selecionar por data
+                        const dataInicio = $('input[name="data_inicio"]').val();
+                        const dataFim = $('input[name="data_fim"]').val();
+                        
+                        if (!dataInicio || !dataFim) {
+                            alert('Por favor, selecione um período válido');
+                            return;
+                        }
+                        
+                        $('.lead-checkbox').each(function() {
+                            const dataEnvio = $(this).closest('tr').find('td:last').text();
+                            if (dataEnvio >= dataInicio && dataEnvio <= dataFim) {
+                                $(this).prop('checked', true);
+                                selectedCount++;
+                            } else {
+                                $(this).prop('checked', false);
+                            }
+                        });
+                        break;
+                        
+                    case 'manual':
+                        // Contagem da seleção manual
+                        selectedCount = $('.lead-checkbox:checked').length;
+                        break;
+                }
+                
+                // Atualizar contador de leads selecionados
+                $('#selectedLeadsCount').text(selectedCount);
+                
+                // Fechar a modal e remover o backdrop
+                $('#leadSelectionModal').modal('hide');
+                $('body').removeClass('modal-open');
+                $('.modal-backdrop').remove();
+                
+                // Adicionar mensagem de confirmação
+                if (selectedCount > 0) {
+                    $('<div>')
+                        .addClass('alert alert-success mt-2')
+                        .text(`${selectedCount} leads selecionados com sucesso!`)
+                        .insertAfter('#selectedLeadsCount')
+                        .fadeOut(3000);
+                }
+            });
+            
+            // Atualizar contagem quando checkboxes individuais são clicados
+            $('.lead-checkbox').change(function() {
+                const count = $('.lead-checkbox:checked').length;
+                $('#selectedLeadsCount').text(count);
+            });
+            
+            // Mostrar/esconder seção de datas
+            $('input[name="selectionType"]').change(function() {
+                if ($(this).val() === 'date') {
+                    $('#dateRangeSection').removeClass('d-none');
+                } else {
+                    $('#dateRangeSection').addClass('d-none');
+                }
+            });
+        });
+
+        $('#massMessageForm').submit(function(e) {
+            e.preventDefault();
+            
+            // Coletar todos os leads selecionados
+            const selectedLeads = [];
+            $('.lead-checkbox:checked').each(function() {
+                selectedLeads.push($(this).val());
+            });
+            
+            if (selectedLeads.length === 0) {
+                alert('Por favor, selecione pelo menos um lead para envio.');
+                return false;
+            }
+
+            // Adicionar os leads selecionados ao formulário
+            selectedLeads.forEach(leadId => {
+                $('<input>').attr({
+                    type: 'hidden',
+                    name: 'selected_leads[]',
+                    value: leadId
+                }).appendTo($(this));
+            });
+
+            // Confirmar envio
+            if (confirm(`Confirma o envio para ${selectedLeads.length} leads?`)) {
+                this.submit();
+            }
+        });
+    </script>
 
     <script>
         // Claude AI Integration - Frontend Code
@@ -904,7 +1034,7 @@ if (empty($erros_envio)) {
             };
         });
     </script>
-<script>
+    <script>
         $(document).ready(function() {
             const leads = <?php echo json_encode($leads); ?>;
             let currentLeadIndex = 0;
@@ -952,8 +1082,8 @@ if (empty($erros_envio)) {
 
                 const lead = leads[currentLeadIndex];
 
-                                // Verifica se o lead já foi processado
-                                if (processedLeads.has(lead.id)) {
+                // Verifica se o lead já foi processado
+                if (processedLeads.has(lead.id)) {
                     currentLeadIndex++;
                     enviarProximaMensagem();
                     return;
