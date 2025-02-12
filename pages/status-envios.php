@@ -78,4 +78,10 @@ function atualizarProgresso() {
 $(document).ready(function() {
     atualizarProgresso();
 });
-</script>git 
+
+if ($status === 'concluido') {
+    criarNotificacao($pdo, $_SESSION['usuario_id'], 'envio_massa', 
+        "Seu envio em massa (ID: {$fila_id}) foi concluído com sucesso!");
+}
+</script>
+
