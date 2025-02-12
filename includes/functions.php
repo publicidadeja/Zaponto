@@ -81,5 +81,15 @@ function verificarAcessoPermitido($pdo, $usuario_id) {
     return true;
 }
 
-
+function formatarNumeroWhatsApp($numero) {
+    // Remove todos os caracteres não numéricos
+    $numero = preg_replace('/[^0-9]/', '', $numero);
+    
+    // Adiciona código do país se não existir
+    if (strlen($numero) == 10 || strlen($numero) == 11) {
+        $numero = '55' . $numero;
+    }
+    
+    return $numero;
+}
 ?>
