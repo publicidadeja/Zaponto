@@ -1,5 +1,8 @@
 <?php
-session_start();
+// Verifica se já existe uma sessão ativa antes de iniciar
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Função para verificar se o usuário está logado
 function estaLogado() {

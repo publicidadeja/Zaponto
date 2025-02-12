@@ -5,6 +5,10 @@ include '../includes/auth.php';
 redirecionarSeNaoLogado();
 include '../includes/db.php';
 
+if (!$_SESSION['perfil_completo']) {
+    include '../includes/modal_perfil.php';
+}
+
 // Definir o título da página
 $page_title = 'Dashboard';
 
@@ -225,7 +229,37 @@ include '../includes/header.php';
     </div>
 </div>
 
+<?php if (!$_SESSION['perfil_completo']): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var perfilModal = new bootstrap.Modal(document.getElementById('perfilModal'));
+    perfilModal.show();
 
+    // Manipular o envio do formulário
+    document.getElementById('formPerfil').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        fetch('../ajax/salvar_perfil.php', {
+            method: 'POST',
+            body: new FormData(this)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                perfilModal.hide();
+                location.reload();
+            } else {
+                alert('Erro ao salvar os dados. Por favor, tente novamente.');
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao salvar os dados. Por favor, tente novamente.');
+        });
+    });
+});
+</script>
+<?php endif; ?>
 
 </body>
 </html>

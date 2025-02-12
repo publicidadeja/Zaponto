@@ -34,6 +34,29 @@ $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </table>
 </div>
 
+<?php if (isset($_SESSION['mensagem'])): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <?php 
+        echo $_SESSION['mensagem'];
+        unset($_SESSION['mensagem']);
+        ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+<?php endif; ?>
+
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Progresso do Envio</h5>
+        <div class="progress mb-3">
+            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                 role="progressbar" style="width: 0%"></div>
+        </div>
+        <div id="statusInfo" class="text-center">
+            Carregando status...
+        </div>
+    </div>
+</div>
+
 <script>
 function atualizarProgresso() {
     fetch('/queue-progress/<?php echo $_SESSION['usuario_id']; ?>')
@@ -55,4 +78,4 @@ function atualizarProgresso() {
 $(document).ready(function() {
     atualizarProgresso();
 });
-</script>
+</script>git 
