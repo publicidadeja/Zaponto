@@ -415,6 +415,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             background-color: #fff;
             border-radius: 8px;
         }
+
+        .modal {
+    overflow-y: auto !important;
+}
+
+.modal-dialog {
+    max-height: 90vh;
+    overflow-y: initial !important;
+}
+
+.modal-body {
+    max-height: calc(90vh - 200px);
+    overflow-y: auto;
+}
+
+/* Garantir que o body mantenha o scroll */
+body.modal-open {
+    overflow: auto !important;
+    padding-right: 0 !important;
+}
     </style>
 </head>
 <body>
@@ -615,16 +635,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $(document).ready(function() {
             // Initialize DataTable
             const leadsTable = $('#leadsTable').DataTable({
-                language: {
-                    url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json'
-                }
-            });
+    scrollY: '50vh', // Altura máxima da tabela
+    scrollCollapse: true,
+    paging: true,
+    language: {
+        url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json'
+    }
+});
 
             // Garantir limpeza adequada quando o modal for fechado
-            $('#leadSelectionModal').on('hidden.bs.modal', function () {
-                $('body').removeClass('modal-open');
-                $('.modal-backdrop').remove();
-            });
+            $('#leadSelectionModal').modal({
+    backdrop: 'static',
+    keyboard: false,
+    scroll: true // Permite scroll
+});
 
             // Handle selection type change
             $('input[name="selectionType"]').change(function() {
@@ -751,9 +775,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $('#selectedLeadsCount').text(selectedCount);
                 
                 // Fechar a modal e remover o backdrop
-                $('#leadSelectionModal').modal('hide');
-                $('body').removeClass('modal-open');
-                $('.modal-backdrop').remove();
+                $('#leadSelectionModal').on('hidden.bs.modal', function () {
+    $('body').css('overflow', 'auto'); // Restaura o scroll
+    $('body').css('padding-right', ''); // Remove o padding adicional
+    $('.modal-backdrop').remove();
+});
                 
                 // Adicionar mensagem de confirmação
                 if (selectedCount > 0) {
