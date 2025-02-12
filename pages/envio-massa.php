@@ -645,13 +645,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $(document).ready(function() {
         // Inicializa o DataTable
         const leadsTable = $('#leadsTable').DataTable({
-            scrollY: '50vh',
-            scrollCollapse: true,
-            paging: true,
-            language: {
-                url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json'
-            }
-        });
+    scrollY: '50vh',
+    scrollCollapse: true,
+    paging: true,
+    language: { // Configuração direta, em vez de language.url
+        "sEmptyTable":   "Nenhum registro encontrado",
+        "sInfo":         "Mostrando de _START_ até _END_ de _TOTAL_ registros",
+        "sInfoEmpty":    "Mostrando 0 até 0 de 0 registros",
+        "sInfoFiltered": "(Filtrados de _MAX_ registros)",
+        "sInfoPostFix":  "",
+        "sInfoThousands":".",
+        "sLengthMenu":   "_MENU_ resultados por página",
+        "sLoadingRecords": "Carregando...",
+        "sProcessing":   "Processando...",
+        "sZeroRecords":  "Nenhum registro encontrado",
+        "sSearch":       "Pesquisar",
+        "oPaginate": {
+            "sNext":     "Próximo",
+            "sPrevious": "Anterior",
+            "sFirst":    "Primeiro",
+            "sLast":     "Último"
+        },
+        "oAria": {
+            "sSortAscending":  ": Ordenar colunas de forma ascendente",
+            "sSortDescending": ": Ordenar colunas de forma descendente"
+        }
+    }
+});
 
         // Configura o modal para limpeza adequada
         $('#leadSelectionModal').modal({
