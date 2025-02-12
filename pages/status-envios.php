@@ -33,3 +33,26 @@ $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </tbody>
     </table>
 </div>
+
+<script>
+function atualizarProgresso() {
+    fetch('/queue-progress/<?php echo $_SESSION['usuario_id']; ?>')
+        .then(response => response.json())
+        .then(data => {
+            // Atualizar interface com o progresso
+            const progresso = (data.enviados / data.total) * 100;
+            $('#progressBar').css('width', progresso + '%');
+            $('#statusInfo').text(`Enviados: ${data.enviados} | Erros: ${data.erros} | Pendentes: ${data.pendentes}`);
+            
+            // Continuar atualizando se ainda houver mensagens pendentes
+            if (data.pendentes > 0) {
+                setTimeout(atualizarProgresso, 5000);
+            }
+        });
+}
+
+// Iniciar monitoramento quando a página carregar
+$(document).ready(function() {
+    atualizarProgresso();
+});
+</script>

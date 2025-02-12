@@ -41,67 +41,25 @@ async function processMessageQueue(usuario_id, dispositivo_id) {
     console.log('Processando fila para usuário:', usuario_id);
 
     try {
-        const client = clients.get(dispositivo_id);
-        if (!client) {
-            throw new Error('Dispositivo não encontrado ou não conectado');
-        }
-
+        const CHUNK_SIZE = 5; // Processar em grupos de 5 mensagens
         const connection = await mysql.createConnection(dbConfig);
         
-        // Buscar mensagens pendentes
-        const [messages] = await connection.execute(
-            'SELECT * FROM fila_mensagens WHERE usuario_id = ? AND status = "PENDENTE" LIMIT 10',
-            [usuario_id]
-        );
+        while (true) {
+            // Buscar apenas um chunk de mensagens
+            const [messages] = await connection.execute(
+                'SELECT * FROM fila_mensagens WHERE usuario_id = ? AND status = "PENDENTE" LIMIT ?',
+                [usuario_id, CHUNK_SIZE]
+            );
 
-        console.log('Mensagens encontradas:', messages.length);
+            if (messages.length === 0) break; // Sair se não há mais mensagens
 
-        for (const message of messages) {
-            try {
-                // Formatar número
-                let formattedNumber = message.numero.replace(/\D/g, '');
-                if (!formattedNumber.startsWith('55')) {
-                    formattedNumber = '55' + formattedNumber;
-                }
-                formattedNumber = `${formattedNumber}@c.us`;
+            // Processar mensagens em paralelo com limite de concorrência
+            await Promise.all(messages.map(message => 
+                processMessage(message, connection, clients.get(dispositivo_id))
+            ));
 
-                // Verificar número
-                const isRegistered = await client.isRegisteredUser(formattedNumber);
-                if (!isRegistered) {
-                    throw new Error('Número não registrado no WhatsApp');
-                }
-
-                // Enviar mídia se existir
-                if (message.arquivo_path && fs.existsSync(message.arquivo_path)) {
-                    const media = MessageMedia.fromFilePath(message.arquivo_path);
-                    await client.sendMessage(formattedNumber, media);
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-
-                // Enviar mensagem
-                await client.sendMessage(formattedNumber, message.mensagem);
-
-                // Atualizar status
-                await connection.execute(
-                    'UPDATE fila_mensagens SET status = "ENVIADO", updated_at = NOW() WHERE id = ?',
-                    [message.id]
-                );
-
-                await connection.execute(
-                    'UPDATE leads_enviados SET status = "ENVIADO", data_envio = NOW() WHERE numero = ? AND usuario_id = ?',
-                    [message.numero, usuario_id]
-                );
-
-                // Intervalo entre mensagens
-                await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 3000));
-
-            } catch (error) {
-                console.error('Erro ao enviar mensagem:', error);
-                await connection.execute(
-                    'UPDATE fila_mensagens SET status = "ERRO", error_message = ? WHERE id = ?',
-                    [error.message.substring(0, 255), message.id]
-                );
-            }
+            // Pequena pausa entre chunks para não sobrecarregar
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
         await connection.end();
@@ -111,6 +69,70 @@ async function processMessageQueue(usuario_id, dispositivo_id) {
         return { success: false, error: error.message };
     }
 }
+
+// Função auxiliar para processar uma única mensagem
+async function processMessage(message, connection, client) {
+    try {
+        let formattedNumber = message.numero.replace(/\D/g, '');
+        if (!formattedNumber.startsWith('55')) {
+            formattedNumber = '55' + formattedNumber;
+        }
+        formattedNumber = `${formattedNumber}@c.us`;
+
+        // Verificar número
+        const isRegistered = await client.isRegisteredUser(formattedNumber);
+        if (!isRegistered) {
+            throw new Error('Número não registrado no WhatsApp');
+        }
+
+        // Enviar mídia se existir
+        if (message.arquivo_path && fs.existsSync(message.arquivo_path)) {
+            const media = MessageMedia.fromFilePath(message.arquivo_path);
+            await client.sendMessage(formattedNumber, media);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Enviar mensagem
+        await client.sendMessage(formattedNumber, message.mensagem);
+
+        // Atualizar status
+        await connection.execute(
+            'UPDATE fila_mensagens SET status = "ENVIADO", updated_at = NOW() WHERE id = ?',
+            [message.id]
+        );
+
+        // Intervalo aleatório entre mensagens
+        await new Promise(resolve => 
+            setTimeout(resolve, Math.random() * 2000 + 1000)
+        );
+
+    } catch (error) {
+        await connection.execute(
+            'UPDATE fila_mensagens SET status = "ERRO", error_message = ? WHERE id = ?',
+            [error.message.substring(0, 255), message.id]
+        );
+    }
+}
+
+app.get('/queue-progress/:usuario_id', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        const [result] = await connection.execute(`
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'ENVIADO' THEN 1 ELSE 0 END) as enviados,
+                SUM(CASE WHEN status = 'ERRO' THEN 1 ELSE 0 END) as erros,
+                SUM(CASE WHEN status = 'PENDENTE' THEN 1 ELSE 0 END) as pendentes
+            FROM fila_mensagens 
+            WHERE usuario_id = ?
+        `, [req.params.usuario_id]);
+        
+        await connection.end();
+        res.json(result[0]);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 
 // Função para limpar sessão antiga

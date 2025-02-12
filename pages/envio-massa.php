@@ -102,15 +102,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             // Iniciar processamento assíncrono
             $ch = curl_init('http://localhost:3000/process-queue');
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => json_encode([
-                    'usuario_id' => $_SESSION['usuario_id'],
-                    'dispositivo_id' => $dispositivo_id
-                ]),
-                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-                CURLOPT_RETURNTRANSFER => true
-            ]);
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => json_encode([
+        'usuario_id' => $_SESSION['usuario_id'],
+        'dispositivo_id' => $dispositivo_id
+    ]),
+    CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 1, // Adicionar timeout curto
+    CURLOPT_NOSIGNAL => 1 // Importante para timeout funcionar
+]);
 
             $response = curl_exec($ch);
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
