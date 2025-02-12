@@ -15,9 +15,11 @@ set_time_limit(300); // 5 minutos
 // Função para enviar a mensagem (adaptada do código anterior)
 function send_message($token, $numero, $mensagem, $arquivo_path = '') {
     $url = 'https://api2.publicidadeja.com.br/api/messages/send';
+    $sucesso = true;
+    $erro = '';
 
+    // 1. Se tiver arquivo, envia primeiro
     if (!empty($arquivo_path) && file_exists($arquivo_path)) {
-        // Envia a mídia primeiro
         $arquivo_nome = preg_replace('/[^a-zA-Z0-9\.]/', '', basename($arquivo_path));
         $cfile = new CURLFile($arquivo_path, mime_content_type($arquivo_path), $arquivo_nome);
 
@@ -31,6 +33,7 @@ function send_message($token, $numero, $mensagem, $arquivo_path = '') {
             'Content-Type: multipart/form-data'
         ];
 
+        // Envia mídia
         $ch_media = curl_init();
         curl_setopt($ch_media, CURLOPT_URL, $url);
         curl_setopt($ch_media, CURLOPT_POST, true);
@@ -40,65 +43,46 @@ function send_message($token, $numero, $mensagem, $arquivo_path = '') {
 
         $response_media = curl_exec($ch_media);
         $http_code_media = curl_getinfo($ch_media, CURLINFO_HTTP_CODE);
-        $error_media = curl_error($ch_media);
         curl_close($ch_media);
 
-        if ($http_code_media == 200) {
-            // Envia o texto depois
-            $headers_text = [
-                'Authorization: Bearer ' . $token,
-                'Content-Type: application/json'
-            ];
-
-            $data_text = json_encode(['number' => $numero, 'body' => $mensagem], JSON_UNESCAPED_UNICODE);
-
-            $ch_text = curl_init();
-            curl_setopt($ch_text, CURLOPT_URL, $url);
-            curl_setopt($ch_text, CURLOPT_POST, true);
-            curl_setopt($ch_text, CURLOPT_HTTPHEADER, $headers_text);
-            curl_setopt($ch_text, CURLOPT_POSTFIELDS, $data_text);
-            curl_setopt($ch_text, CURLOPT_RETURNTRANSFER, true);
-
-            $response_text = curl_exec($ch_text);
-            $http_code_text = curl_getinfo($ch_text, CURLINFO_HTTP_CODE);
-            $error_text = curl_error($ch_text);
-            curl_close($ch_text);
-
-            if ($http_code_text == 200) {
-                return ['success' => true];
-            } else {
-                return ['success' => false, 'error' => "Erro ao enviar mensagem de texto. Código HTTP: " . $http_code_text . ", Resposta: " . $response_text];
-            }
-        } else {
-            return ['success' => false, 'error' => "Erro ao enviar mídia. Código HTTP: " . $http_code_media . ", Resposta: " . $response_media];
+        // Verifica se o envio da mídia foi bem sucedido
+        if ($http_code_media != 200) {
+            return ['sucesso' => false, 'erro' => 'Erro ao enviar mídia'];
         }
-    } else {
-        // Envia a mensagem de texto (sem arquivo)
-        $headers = [
+
+        // Aguarda 2 segundos após enviar a mídia
+        sleep(2);
+    }
+
+    // 2. Envia o texto logo em seguida
+    if (!empty($mensagem)) {
+        $headers_text = [
             'Authorization: Bearer ' . $token,
             'Content-Type: application/json'
         ];
 
-        $data = json_encode(['number' => $numero, 'body' => $mensagem], JSON_UNESCAPED_UNICODE);
+        $post_data_text = json_encode([
+            'number' => $numero,
+            'message' => $mensagem
+        ]);
 
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $ch_text = curl_init();
+        curl_setopt($ch_text, CURLOPT_URL, $url);
+        curl_setopt($ch_text, CURLOPT_POST, true);
+        curl_setopt($ch_text, CURLOPT_HTTPHEADER, $headers_text);
+        curl_setopt($ch_text, CURLOPT_POSTFIELDS, $post_data_text);
+        curl_setopt($ch_text, CURLOPT_RETURNTRANSFER, true);
 
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
+        $response_text = curl_exec($ch_text);
+        $http_code_text = curl_getinfo($ch_text, CURLINFO_HTTP_CODE);
+        curl_close($ch_text);
 
-        if ($http_code == 200) {
-            return ['success' => true];
-        } else {
-            return ['success' => false, 'error' => "Código HTTP: " . $http_code . ", Resposta: " . $response];
+        if ($http_code_text != 200) {
+            return ['sucesso' => false, 'erro' => 'Erro ao enviar mensagem'];
         }
     }
+
+    return ['sucesso' => true, 'erro' => ''];
 }
 
 // Obtém os dados do POST

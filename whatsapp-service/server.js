@@ -41,24 +41,23 @@ async function processMessageQueue(usuario_id, dispositivo_id) {
     console.log('Processando fila para usuário:', usuario_id);
 
     try {
-        const CHUNK_SIZE = 5; // Processar em grupos de 5 mensagens
+        const CHUNK_SIZE = 1; // Processa um lead por vez
         const connection = await mysql.createConnection(dbConfig);
         
         while (true) {
-            // Buscar apenas um chunk de mensagens
             const [messages] = await connection.execute(
                 'SELECT * FROM fila_mensagens WHERE usuario_id = ? AND status = "PENDENTE" LIMIT ?',
                 [usuario_id, CHUNK_SIZE]
             );
 
-            if (messages.length === 0) break; // Sair se não há mais mensagens
+            if (messages.length === 0) break;
 
-            // Processar mensagens em paralelo com limite de concorrência
-            await Promise.all(messages.map(message => 
-                processMessage(message, connection, clients.get(dispositivo_id))
-            ));
+            // Processa uma mensagem por vez
+            for (const message of messages) {
+                await processMessage(message, connection, clients.get(dispositivo_id));
+            }
 
-            // Pequena pausa entre chunks para não sobrecarregar
+            // Pequena pausa entre processamentos
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
@@ -85,23 +84,27 @@ async function processMessage(message, connection, client) {
             throw new Error('Número não registrado no WhatsApp');
         }
 
-        // Enviar mídia se existir
+        // Sequência correta de envio para cada lead:
+        // 1. Enviar mídia (se existir)
         if (message.arquivo_path && fs.existsSync(message.arquivo_path)) {
             const media = MessageMedia.fromFilePath(message.arquivo_path);
             await client.sendMessage(formattedNumber, media);
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Aguarda 2 segundos após enviar a mídia
+            await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
-        // Enviar mensagem
-        await client.sendMessage(formattedNumber, message.mensagem);
+        // 2. Enviar mensagem de texto logo em seguida
+        if (message.mensagem && message.mensagem.trim()) {
+            await client.sendMessage(formattedNumber, message.mensagem);
+        }
 
-        // Atualizar status
+        // Atualizar status como enviado
         await connection.execute(
             'UPDATE fila_mensagens SET status = "ENVIADO", updated_at = NOW() WHERE id = ?',
             [message.id]
         );
 
-        // Intervalo aleatório entre mensagens
+        // Intervalo aleatório entre leads (entre 1 e 3 segundos)
         await new Promise(resolve => 
             setTimeout(resolve, Math.random() * 2000 + 1000)
         );
