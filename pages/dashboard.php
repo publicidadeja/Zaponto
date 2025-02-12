@@ -1,11 +1,15 @@
 <?php
-// Mantendo todo o código PHP original no topo
 session_start();
 include '../includes/auth.php';
 redirecionarSeNaoLogado();
 include '../includes/db.php';
 
-if (!$_SESSION['perfil_completo']) {
+// Consultar o status do perfil diretamente do banco
+$stmt = $pdo->prepare("SELECT perfil_completo FROM usuarios WHERE id = ?");
+$stmt->execute([$_SESSION['usuario_id']]);
+$usuario = $stmt->fetch();
+
+if (!$usuario['perfil_completo']) {
     include '../includes/modal_perfil.php';
 }
 
@@ -229,13 +233,12 @@ include '../includes/header.php';
     </div>
 </div>
 
-<?php if (!$_SESSION['perfil_completo']): ?>
+<?php if (!$usuario['perfil_completo']): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var perfilModal = new bootstrap.Modal(document.getElementById('perfilModal'));
     perfilModal.show();
 
-    // Manipular o envio do formulário
     document.getElementById('formPerfil').addEventListener('submit', function(e) {
         e.preventDefault();
         
@@ -247,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 perfilModal.hide();
-                location.reload();
+                window.location.reload(); // Força o recarregamento da página
             } else {
                 alert('Erro ao salvar os dados. Por favor, tente novamente.');
             }
