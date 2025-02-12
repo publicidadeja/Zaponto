@@ -504,7 +504,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     <i class="fas fa-magic"></i> Sugerir Melhorias
                                 </button>
                             </div>
-                            <textarea name="mensagem" id="mensagem" class="form-control" rows="4" required><?php echo htmlspecialchars($mensagem_base); ?></textarea>
+                            <textarea name="mensagem" id="mensagem" class="form-control" rows="4" required>Preencha aqui com o seu texto...</textarea>
                             <div class="form-text">Use {nome} para incluir o nome do lead na mensagem.</div>
                         </div>
 
