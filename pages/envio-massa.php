@@ -43,17 +43,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $nome_arquivo = uniqid('file_') . '_' . time() . '_' . $_FILES['arquivo']['name'];
         $arquivo_path = $upload_dir . $nome_arquivo;
         
-        // Verificar e criar diretório de upload se não existir
         if (!file_exists($upload_dir)) {
             mkdir($upload_dir, 0777, true);
         }
         
-        // Tentar fazer o upload do arquivo
         if (move_uploaded_file($_FILES['arquivo']['tmp_name'], $arquivo_path)) {
             // Upload bem sucedido
         } else {
             $erros_envio[] = "Erro ao fazer upload do arquivo.";
-            $arquivo_path = ''; // Reset do caminho em caso de erro
+            $arquivo_path = '';
         }
     }
 
@@ -73,80 +71,70 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     if (empty($erros_envio)) {
-        // Buscar os leads selecionados do banco de dados
-        $placeholders = str_repeat('?,', count($selected_leads) - 1) . '?';
-        $stmt = $pdo->prepare("SELECT * FROM leads_enviados 
-                              WHERE id IN ($placeholders) 
-                              AND usuario_id = ?");
-        
-        $params = array_merge($selected_leads, [$_SESSION['usuario_id']]);
-        $stmt->execute($params);
-        $leads_to_process = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            // Criar registro na fila_mensagens para cada lead
+            foreach ($selected_leads as $lead_id) {
+                $stmt = $pdo->prepare("SELECT numero, nome FROM leads_enviados WHERE id = ? AND usuario_id = ?");
+                $stmt->execute([$lead_id, $_SESSION['usuario_id']]);
+                $lead = $stmt->fetch();
 
-        $success_count = 0;
-        $error_count = 0;
+                if ($lead) {
+                    // Personalizar mensagem para cada lead
+                    $mensagem_personalizada = str_replace(
+                        ['{nome}', '{numero}'],
+                        [$lead['nome'], $lead['numero']],
+                        $mensagem
+                    );
 
-        foreach ($leads_to_process as $lead) {
-            try {
-                // Personalizar mensagem
-                $mensagem_personalizada = str_replace(
-                    ['{nome}', '{numero}'],
-                    [$lead['nome'], $lead['numero']],
-                    $mensagem
-                );
-
-                // Preparar dados para envio
-                $data = [
-                    'deviceId' => $dispositivo_id,
-                    'number' => formatarNumeroWhatsApp($lead['numero']),
-                    'message' => $mensagem_personalizada
-                ];
-
-                // Adicionar arquivo se existir
-                if (!empty($arquivo_path) && file_exists($arquivo_path)) {
-                    $data['mediaPath'] = $arquivo_path;
+                    // Inserir na fila
+                    $stmt = $pdo->prepare("INSERT INTO fila_mensagens 
+                        (usuario_id, dispositivo_id, numero, mensagem, arquivo_path, status, created_at) 
+                        VALUES (?, ?, ?, ?, ?, 'PENDENTE', NOW())");
+                    $stmt->execute([
+                        $_SESSION['usuario_id'],
+                        $dispositivo_id,
+                        $lead['numero'],
+                        $mensagem_personalizada,
+                        $arquivo_path
+                    ]);
                 }
-
-                // Enviar mensagem
-                $ch = curl_init('http://localhost:3000/send-message');
-                curl_setopt_array($ch, [
-                    CURLOPT_POST => true,
-                    CURLOPT_POSTFIELDS => json_encode($data),
-                    CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-                    CURLOPT_RETURNTRANSFER => true
-                ]);
-
-                $response = curl_exec($ch);
-                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                
-                if ($http_code == 200) {
-                    // Atualizar status do lead
-                    $stmt = $pdo->prepare("UPDATE leads_enviados SET 
-                        status = 'ENVIADO',
-                        data_envio = NOW()
-                        WHERE id = ?");
-                    $stmt->execute([$lead['id']]);
-                    
-                    $success_count++;
-                    
-                    // Intervalo entre mensagens
-                    sleep(rand(2, 5));
-                } else {
-                    throw new Exception('Erro ao enviar mensagem');
-                }
-
-                curl_close($ch);
-
-            } catch (Exception $e) {
-                $error_count++;
-                error_log("Erro ao enviar mensagem para {$lead['numero']}: " . $e->getMessage());
-                $erros_envio[] = "Erro ao enviar mensagem para {$lead['numero']}: " . $e->getMessage();
             }
-        }
 
-        $_SESSION['mensagem'] = "Envio concluído: $success_count mensagens enviadas, $error_count falhas.";
+            // Iniciar processamento assíncrono
+            $ch = curl_init('http://localhost:3000/process-queue');
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode([
+                    'usuario_id' => $_SESSION['usuario_id'],
+                    'dispositivo_id' => $dispositivo_id
+                ]),
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                CURLOPT_RETURNTRANSFER => true
+            ]);
+
+            $response = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($http_code == 200) {
+                $_SESSION['mensagem'] = "Envio iniciado em segundo plano. Você pode acompanhar o progresso na aba de status.";
+                header('Location: status-envios.php');
+                exit;
+            } else {
+                throw new Exception('Erro ao iniciar o processamento da fila');
+            }
+
+        } catch (Exception $e) {
+            error_log("Erro ao criar fila de envio: " . $e->getMessage());
+            $erros_envio[] = "Erro ao iniciar o envio em massa: " . $e->getMessage();
+        }
+    }
+
+    if (!empty($erros_envio)) {
+        $_SESSION['erros_envio'] = $erros_envio;
     }
 }
+
 ?>
 
 <!DOCTYPE html>

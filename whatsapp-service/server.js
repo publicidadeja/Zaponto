@@ -36,17 +36,8 @@ if (!fs.existsSync(SESSION_DIR)) {
 // Armazenar clientes ativos
 const clients = new Map();
 
-// Função para limpar sessão antiga
-async function clearSession(deviceId) {
-    const sanitizedDeviceId = sanitizeDeviceId(deviceId);
-    const sessionDir = path.join(SESSION_DIR, `session-${sanitizedDeviceId}`);
-    if (fs.existsSync(sessionDir)) {
-        fs.rmSync(sessionDir, { recursive: true, force: true });
-    }
-}
-
-app.post('/process-queue', async (req, res) => {
-    const { usuario_id, dispositivo_id } = req.body;
+// Função para processar a fila de mensagens
+async function processMessageQueue(usuario_id, dispositivo_id) {
     console.log('Processando fila para usuário:', usuario_id);
 
     try {
@@ -57,7 +48,7 @@ app.post('/process-queue', async (req, res) => {
 
         const connection = await mysql.createConnection(dbConfig);
         
-        // Buscar mensagens pendentes em lotes menores
+        // Buscar mensagens pendentes
         const [messages] = await connection.execute(
             'SELECT * FROM fila_mensagens WHERE usuario_id = ? AND status = "PENDENTE" LIMIT 10',
             [usuario_id]
@@ -67,17 +58,24 @@ app.post('/process-queue', async (req, res) => {
 
         for (const message of messages) {
             try {
-                // Formatar número corretamente
+                // Formatar número
                 let formattedNumber = message.numero.replace(/\D/g, '');
                 if (!formattedNumber.startsWith('55')) {
                     formattedNumber = '55' + formattedNumber;
                 }
                 formattedNumber = `${formattedNumber}@c.us`;
 
-                // Verificar se o número é válido
+                // Verificar número
                 const isRegistered = await client.isRegisteredUser(formattedNumber);
                 if (!isRegistered) {
                     throw new Error('Número não registrado no WhatsApp');
+                }
+
+                // Enviar mídia se existir
+                if (message.arquivo_path && fs.existsSync(message.arquivo_path)) {
+                    const media = MessageMedia.fromFilePath(message.arquivo_path);
+                    await client.sendMessage(formattedNumber, media);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                 }
 
                 // Enviar mensagem
@@ -90,11 +88,11 @@ app.post('/process-queue', async (req, res) => {
                 );
 
                 await connection.execute(
-                    'UPDATE leads_enviados SET status = "ENVIADO" WHERE numero = ? AND usuario_id = ?',
+                    'UPDATE leads_enviados SET status = "ENVIADO", data_envio = NOW() WHERE numero = ? AND usuario_id = ?',
                     [message.numero, usuario_id]
                 );
 
-                // Intervalo entre mensagens (entre 3 e 8 segundos)
+                // Intervalo entre mensagens
                 await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 3000));
 
             } catch (error) {
@@ -107,10 +105,64 @@ app.post('/process-queue', async (req, res) => {
         }
 
         await connection.end();
-        res.json({ success: true });
+        return { success: true };
+    } catch (error) {
+        console.error('Erro ao processar fila:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+
+// Função para limpar sessão antiga
+async function clearSession(deviceId) {
+    const sanitizedDeviceId = sanitizeDeviceId(deviceId);
+    const sessionDir = path.join(SESSION_DIR, `session-${sanitizedDeviceId}`);
+    if (fs.existsSync(sessionDir)) {
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+}
+
+app.post('/process-queue', async (req, res) => {
+    const { usuario_id, dispositivo_id } = req.body;
+    
+    try {
+        const result = await processMessageQueue(usuario_id, dispositivo_id);
+        if (result.success) {
+            res.json({ success: true });
+        } else {
+            res.status(500).json({ success: false, error: result.error });
+        }
     } catch (error) {
         console.error('Erro ao processar fila:', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/queue-status/:usuario_id', async (req, res) => {
+    const { usuario_id } = req.params;
+    
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.execute(
+            `SELECT 
+                COUNT(CASE WHEN status = 'PENDENTE' THEN 1 END) as pendentes,
+                COUNT(CASE WHEN status = 'ENVIADO' THEN 1 END) as enviados,
+                COUNT(CASE WHEN status = 'ERRO' THEN 1 END) as erros
+            FROM fila_mensagens 
+            WHERE usuario_id = ?`,
+            [usuario_id]
+        );
+        await connection.end();
+        
+        res.json({
+            success: true,
+            status: rows[0]
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
 });
 

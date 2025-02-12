@@ -92,4 +92,12 @@ function formatarNumeroWhatsApp($numero) {
     
     return $numero;
 }
+
+function isHorarioComercial() {
+    $hora_atual = (int)date('H');
+    $dia_semana = date('N'); // 1 (Segunda) até 7 (Domingo)
+    
+    // Horário comercial: 8h às 18h, Segunda a Sexta
+    return ($hora_atual >= 8 && $hora_atual < 18) && ($dia_semana >= 1 && $dia_semana <= 5);
+}
 ?>
