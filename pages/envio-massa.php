@@ -444,6 +444,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
            overflow: auto !important;
            padding-right: 0 !important;
        }
+
+       .progress {
+    height: 25px;
+    background-color: #f5f5f5;
+    border-radius: 20px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.1);
+}
+
+.progress-bar {
+    background-color: #0098fc;
+    border-radius: 20px;
+    transition: width .6s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+}
     </style>
 </head>
 <body>
@@ -545,18 +563,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </button>
                     </form>
 
-                    <!-- Barra de Progresso (oculta por padrão) -->
-                    <div id="progressSection" class="mt-4 d-none">
-                        <h5>Progresso do Envio</h5>
-                        <div class="progress">
-                            <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
-                        </div>
-                        <p class="mt-2">Enviando mensagem <span id="currentCount">0</span> de <span id="totalCount">0</span></p>
-                    </div>
-                </div>
-            </div>
+                    <!-- Barra de Progresso -->
+<div id="progressContainer" class="mt-4 d-none">
+    <h5>Progresso do Envio</h5>
+    <div class="progress">
+        <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%">
+            <span id="progressText">0%</span>
         </div>
     </div>
+    <p class="mt-2 text-center">
+        Enviando mensagem <span id="currentMessage">0</span> de <span id="totalMessages">0</span>
+    </p>
+</div>
 
     <!-- Modal de Seleção de Leads -->
     <div class="modal fade" id="leadSelectionModal" tabindex="-1">
@@ -1262,5 +1280,66 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     });
     </script>
+
+<script>
+// Função para iniciar o progresso
+function iniciarProgresso(total) {
+    // Mostra o container do progresso
+    $('#progressContainer').removeClass('d-none');
+    
+    // Define o total de mensagens
+    $('#totalMessages').text(total);
+    $('#currentMessage').text('0');
+    
+    // Reseta a barra de progresso
+    $('#progressBar').css('width', '0%');
+    $('#progressText').text('0%');
+}
+
+// Função para atualizar o progresso
+function atualizarProgresso(atual, total) {
+    const porcentagem = Math.round((atual / total) * 100);
+    
+    $('#progressBar').css('width', porcentagem + '%');
+    $('#progressText').text(porcentagem + '%');
+    $('#currentMessage').text(atual);
+}
+
+// Quando o formulário for enviado
+$('#massMessageForm').submit(function(e) {
+    e.preventDefault();
+    
+    // Pega o número de leads selecionados
+    const totalLeads = $('.lead-checkbox:checked').length;
+    
+    if (totalLeads === 0) {
+        alert('Selecione pelo menos um lead para envio.');
+        return;
+    }
+    
+    if (confirm(`Confirma o envio para ${totalLeads} leads?`)) {
+        // Inicia a barra de progresso
+        iniciarProgresso(totalLeads);
+        
+        // Simula o progresso (você precisará adaptar isso para seu sistema real)
+        let atual = 0;
+        const intervalo = setInterval(function() {
+            atual++;
+            atualizarProgresso(atual, totalLeads);
+            
+            if (atual >= totalLeads) {
+                clearInterval(intervalo);
+                setTimeout(function() {
+                    $('#progressContainer').addClass('d-none');
+                    alert('Envio concluído com sucesso!');
+                }, 1000);
+            }
+        }, 500);
+        
+        // Submete o formulário
+        this.submit();
+    }
+});
+</script>
 </body>
 </html>
