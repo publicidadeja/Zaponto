@@ -266,6 +266,29 @@ $extra_css = '
     max-height: 300px;
     overflow-y: auto;
 }
+
+.table-sm {
+    font-size: 0.85rem;
+}
+
+.badge {
+    padding: 0.4em 0.6em;
+    font-size: 0.75rem;
+}
+
+.btn-sm {
+    margin-right: 0.5rem;
+}
+
+.current-plan .table-responsive {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.current-plan .table td, 
+.current-plan .table th {
+    padding: 0.5rem;
+}
 </style>';
 
 include '../includes/header.php';
@@ -292,89 +315,7 @@ include '../includes/header.php';
         </div>
     <?php endif; ?>
 
-    <div class="row mt-4">
-    <div class="col-lg-12">
-        <div class="profile-section">
-            <h4><i class="fas fa-credit-card"></i> Detalhes da Assinatura</h4>
-            
-            <?php if (isset($usuario['status_assinatura']) && $usuario['status_assinatura'] === 'ativo'): ?>
-                <div class="current-plan">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h5><?php echo htmlspecialchars($usuario['plano_nome']); ?></h5>
-                            <p class="text-muted">R$ <?php echo number_format($usuario['plano_valor'], 2, ',', '.'); ?>/mês</p>
-                            <p><strong>Status:</strong> <span class="badge badge-success">Ativo</span></p>
-                            <p><strong>Próximo Pagamento:</strong> <?php echo date('d/m/Y', strtotime($usuario['proximo_pagamento'])); ?></p>
-                            
-                            <div class="mt-3">
-                                <a href="portal.php" class="btn btn-primary">
-                                    <i class="fas fa-cog"></i> Gerenciar Assinatura
-                                </a>
-                                
-                                <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#cancelarModal">
-                                    <i class="fas fa-times"></i> Cancelar Assinatura
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-body">
-                                    <h5 class="card-title">Histórico de Pagamentos</h5>
-                                    <div class="table-responsive">
-                                        <table class="table table-sm">
-                                            <thead>
-                                                <tr>
-                                                    <th>Data</th>
-                                                    <th>Valor</th>
-                                                    <th>Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <!-- Implementar busca do histórico de pagamentos -->
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            <?php else: ?>
-                <div class="text-center py-4">
-                    <p>Você não possui uma assinatura ativa.</p>
-                    <a href="planos.php" class="btn btn-primary">
-                        <i class="fas fa-shopping-cart"></i> Escolher um Plano
-                    </a>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
-<!-- Modal de Cancelamento -->
-<div class="modal fade" id="cancelarModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Confirmar Cancelamento</h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <p>Tem certeza que deseja cancelar sua assinatura?</p>
-                <p>Você perderá acesso aos recursos premium ao final do período atual.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Não</button>
-                <form action="cancelado.php" method="POST">
-                    <input type="hidden" name="subscription_id" value="<?php echo $usuario['stripe_subscription_id']; ?>">
-                    <button type="submit" name="cancelar_assinatura" class="btn btn-danger">Sim, Cancelar</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
+  
 
     <div class="row">
         <!-- Coluna do Perfil (lado esquerdo) -->
@@ -466,35 +407,73 @@ include '../includes/header.php';
         </div>
 
         <!-- Coluna do Plano (lado direito) -->
-        <div class="col-lg-4">
-            <div class="profile-section">
-                <h4><i class="fas fa-box"></i> Meu Plano</h4>
-                
-                <?php if ($plano_atual): ?>
-                <div class="current-plan">
-                    <h5><?php echo htmlspecialchars($plano_atual['nome']); ?></h5>
-                    <p class="text-muted">R$ <?php echo number_format($plano_atual['preco'], 2, ',', '.'); ?>/mês</p>
-                    <ul class="list-unstyled plan-features">
-                        <li><i class="fas fa-check"></i> <?php echo $plano_atual['limite_leads']; ?> leads disponíveis</li>
-                        <li><i class="fas fa-check"></i> <?php echo $plano_atual['limite_mensagens']; ?> mensagens/mês</li>
-                        <?php if ($plano_atual['descricao']): ?>
-                            <li><i class="fas fa-info-circle"></i> <?php echo htmlspecialchars($plano_atual['descricao']); ?></li>
-                        <?php endif; ?>
-                    </ul>
-                    <a href="planos.php" class="btn btn-primary w-100">
-                        <i class="fas fa-sync-alt"></i> Atualizar Plano
-                    </a>
+<div class="col-lg-4">
+    <div class="profile-section">
+        <h4><i class="fas fa-box"></i> Detalhes da Assinatura</h4>
+        
+        <?php if ($plano_atual): ?>
+        <div class="current-plan">
+            <h5><?php echo htmlspecialchars($plano_atual['nome']); ?></h5>
+            <p class="text-muted">R$ <?php echo number_format($plano_atual['preco'], 2, ',', '.'); ?>/mês</p>
+            <p><strong>Status:</strong> <span class="badge badge-success">Ativo</span></p>
+            <p><strong>Próximo Pagamento:</strong> 
+                <?php 
+                if (isset($usuario['proximo_pagamento'])) {
+                    echo date('d/m/Y', strtotime($usuario['proximo_pagamento']));
+                } else {
+                    echo "Não definido";
+                }
+                ?>
+            </p>
+
+            <!-- Histórico de Pagamentos -->
+            <div class="mt-3">
+                <h6>Últimos Pagamentos</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($historico_pagamentos as $pagamento): ?>
+                            <tr>
+                                <td><?php echo date('d/m/Y', strtotime($pagamento['data_pagamento'])); ?></td>
+                                <td>R$ <?php echo number_format($pagamento['valor'], 2, ',', '.'); ?></td>
+                                <td>
+                                    <?php if ($pagamento['status_pagamento'] === 'ativo'): ?>
+                                        <span class="badge badge-success">Pago</span>
+                                    <?php else: ?>
+                                        <span class="badge badge-danger">Cancelado</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
-                <?php else: ?>
-                <div class="text-center">
-                    <p>Nenhum plano ativo.</p>
-                    <a href="planos.php" class="btn btn-primary">
-                        <i class="fas fa-shopping-cart"></i> Escolher um Plano
-                    </a>
-                </div>
-                <?php endif; ?>
+            </div>
+
+            <div class="mt-3">
+                <a href="planos.php" class="btn btn-primary btn-sm">
+                    <i class="fas fa-sync-alt"></i> Atualizar Plano
+                </a>
+                <button type="button" class="btn btn-danger btn-sm" data-toggle="modal" data-target="#cancelarModal">
+                    <i class="fas fa-times"></i> Cancelar Assinatura
+                </button>
             </div>
         </div>
+        <?php else: ?>
+        <div class="text-center">
+            <p>Você não possui uma assinatura ativa.</p>
+            <a href="planos.php" class="btn btn-primary">
+                <i class="fas fa-shopping-cart"></i> Escolher um Plano
+            </a>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
