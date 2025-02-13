@@ -39,6 +39,13 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <i class="fas fa-chart-bar"></i> Relatórios
                 </a>
             </li>
+
+            <li class="nav-item">
+    <a class="nav-link" href="notificacoes.php">
+        <i class="fas fa-bell"></i>
+        <span>Notificações</span>
+    </a>
+</li>
             <li class="nav-item">
                 <a class="nav-link <?php echo $current_page == 'configuracoes.php' ? 'active' : ''; ?>" 
                    href="configuracoes.php">

@@ -27,6 +27,7 @@ require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/db.php';
 
 
+
 /**
  * Determina a URL base do projeto, considerando HTTPS e subdiretórios.
  *
@@ -90,6 +91,8 @@ function checkUserStatus(PDO $pdo, string $currentPage, string $baseUrl): void
         }
     }
 }
+
+
 
 // Só verifica o status se a conexão com o banco de dados existir
 if (isset($pdo)) {
@@ -206,6 +209,66 @@ if (isset($_SESSION['usuario_id'], $pdo) && !in_array($current_page, PUBLIC_PAGE
             }
         }
 
+        .notification-dropdown {
+    width: 300px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.notification-item {
+    display: flex;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.notification-item.read {
+    opacity: 0.6;
+    background-color: #f8f9fa;
+}
+
+.notification-item:hover {
+    background-color: #f8f9fa;
+    cursor: pointer;
+}
+
+.notification-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+.notification-content {
+    flex: 1;
+}
+
+.notification-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.notification-text {
+    font-size: 0.9em;
+    color: #666;
+}
+
+.notification-time {
+    font-size: 0.8em;
+    color: #999;
+    margin-top: 5px;
+}
+
+.notification-loading {
+    color: #666;
+}
+
+.notification-loading.show {
+    display: block !important;
+}
     </style>
 
     <?php if (isset($extra_css)) { echo $extra_css; } ?>
@@ -290,7 +353,57 @@ if (isset($_SESSION['usuario_id'], $pdo) && !in_array($current_page, PUBLIC_PAGE
                     </ul>
                     <ul class="navbar-nav">
                         <li class="navbar-icons">
-                            <a href="#" title="Notificações"><i class="fas fa-bell"></i></a>
+                            
+                            <?php include_once 'notifications.php';
+$notificacoes = buscarNotificacoes($pdo, $_SESSION['usuario_id']);
+$total_notificacoes = count($notificacoes);
+?>
+
+<div class="dropdown">
+    <a class="nav-link" href="#" role="button" data-bs-toggle="dropdown">
+        <i class="fas fa-bell"></i>
+        <?php if ($total_notificacoes > 0): ?>
+            <span class="badge bg-danger"><?php echo $total_notificacoes; ?></span>
+        <?php endif; ?>
+    </a>
+    <div class="dropdown-menu dropdown-menu-end notification-dropdown">
+    <div class="dropdown-header">Notificações (<span id="notification-count"><?php echo $total_notificacoes; ?></span>)</div>
+    <div class="notification-list">
+        <div class="notification-loading text-center p-3 d-none">
+            <i class="fas fa-spinner fa-spin"></i> Carregando...
+        </div>
+            <?php if ($total_notificacoes > 0): ?>
+                <?php foreach ($notificacoes as $notificacao): ?>
+    <a href="#" class="notification-item <?php echo $notificacao['lida'] ? 'read' : ''; ?>" 
+       data-id="<?php echo $notificacao['id']; ?>">
+        <div class="notification-icon">
+        <?php
+$icon = '';
+switch ($notificacao['tipo']) {
+    case 'plano': $icon = 'fa-calendar'; break;
+    case 'envios': $icon = 'fa-paper-plane'; break;
+    case 'leads': $icon = 'fa-users'; break;
+    case 'admin': $icon = 'fa-bell'; break;
+    default: $icon = 'fa-bell'; break;
+}
+?>
+<i class="fas <?php echo $icon; ?>"></i>
+        </div>
+        <div class="notification-content">
+            <div class="notification-title"><?php echo htmlspecialchars($notificacao['titulo']); ?></div>
+            <div class="notification-text"><?php echo htmlspecialchars($notificacao['mensagem']); ?></div>
+            <div class="notification-time">
+                <?php echo date('d/m/Y H:i', strtotime($notificacao['data_criacao'])); ?>
+            </div>
+        </div>
+    </a>
+<?php endforeach; ?>
+            <?php else: ?>
+                <div class="dropdown-item">Nenhuma notificação</div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
                             <a href="<?php echo htmlspecialchars($base_url); ?>/pages/perfil.php" title="Perfil"><i class="fas fa-user-circle"></i></a>
                             <a href="<?php echo htmlspecialchars($base_url); ?>/logout.php" title="Sair"><i class="fas fa-sign-out-alt"></i></a>
                         </li>
@@ -299,3 +412,4 @@ if (isset($_SESSION['usuario_id'], $pdo) && !in_array($current_page, PUBLIC_PAGE
             <?php endif; ?>
         </div>
     </nav>
+    <script src="<?php echo $base_url; ?>/js/notifications.js"></script>
