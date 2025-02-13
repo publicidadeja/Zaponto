@@ -638,23 +638,21 @@ $(document).ready(function() {
 
     // Validação e submissão do formulário
     $('#formNotificacao').on('submit', function(e) {
-        e.preventDefault();
-        
-        const tipoEnvio = $('input[name="tipo_envio"]:checked').val();
-        if (tipoEnvio === 'agendado') {
-            const dataAgendamento = $('input[name="data_agendamento"]').val();
-            if (!dataAgendamento) {
-                alert('Por favor, selecione uma data para o agendamento.');
-                return false;
-            }
-        }
+    e.preventDefault();
+    
+    const tipoEnvio = $('input[name="tipo_envio"]:checked').val();
+    const dataAgendamento = $('input[name="data_agendamento"]').val();
+    
+    if (tipoEnvio === 'agendado' && !dataAgendamento) {
+        alert('Por favor, selecione uma data para o agendamento.');
+        return false;
+    }
 
-        // Desabilitar botão para evitar duplo envio
-        $(this).find('button[type="submit"]').prop('disabled', true);
-        
-        // Enviar formulário
-        this.submit();
-    });
+    // Desabilitar botão para evitar duplo envio
+    $(this).find('button[type="submit"]').prop('disabled', true);
+    
+    // Enviar formulário corretamente
+    $(this).off('submit').submit();
 });
 </script>
 </body>

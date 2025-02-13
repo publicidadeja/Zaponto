@@ -464,30 +464,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 
-<!-- AI Assistant Widget -->
 <iframe 
     src="<?php echo getBaseUrl(); ?>/api/assistant/chat.php" 
-    id="assistantFrame"
-    style="
-        position: fixed;
-        bottom: 20px;
-        left: 20px;
-        width: 350px;
-        height: 500px;
-        border: none;
-        z-index: 9999;
-        border-radius: 12px;
-        box-shadow: 0 5px 25px rgba(0,0,0,0.2);
-        background: transparent;
-    "
+    style="display: none;"
 ></iframe>
-
-<style>
-@media (max-width: 480px) {
-    #assistantFrame {
-        width: calc(100% - 40px);
-        height: 450px;
-    }
-}
-</style>
-
