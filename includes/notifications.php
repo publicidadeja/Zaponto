@@ -1,4 +1,6 @@
 <?php
+
+
 function criarNotificacao($pdo, $usuario_id, $tipo, $titulo, $mensagem) {
     $stmt = $pdo->prepare("INSERT INTO notificacoes (usuario_id, tipo, titulo, mensagem) VALUES (?, ?, ?, ?)");
     return $stmt->execute([$usuario_id, $tipo, $titulo, $mensagem]);

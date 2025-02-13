@@ -4,6 +4,7 @@ include '../includes/auth.php';
 redirecionarSeNaoLogado();
 include '../includes/db.php';
 
+
 // Definir o título da página
 $page_title = 'Meu Perfil';
 
@@ -477,6 +478,31 @@ include '../includes/header.php';
     </div>
 </div>
 
+<!-- Modal de Cancelamento -->
+<div class="modal fade" id="cancelarModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Cancelamento</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja cancelar sua assinatura?</p>
+                <p>Você perderá acesso aos recursos premium ao final do período atual.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Não</button>
+                <form action="cancelado.php" method="POST">
+                    <input type="hidden" name="subscription_id" value="<?php echo isset($usuario['stripe_subscription_id']) ? $usuario['stripe_subscription_id'] : ''; ?>">
+                    <button type="submit" name="cancelar_assinatura" class="btn btn-danger">Sim, Cancelar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Scripts -->
 <script>
 // Script para preview da foto de perfil
@@ -490,6 +516,24 @@ document.getElementById('foto_perfil').addEventListener('change', function(e) {
         }
         reader.readAsDataURL(file);
     }
+});
+</script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/js/notifications.js"></script>
+
+<!-- Scripts do Bootstrap -->
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Inicializar o modal
+    $('#cancelarModal').modal({
+        keyboard: true,
+        backdrop: 'static'
+    });
 });
 </script>
 

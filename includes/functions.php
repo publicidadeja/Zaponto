@@ -100,4 +100,50 @@ function isHorarioComercial() {
     // Horário comercial: 8h às 18h, Segunda a Sexta
     return ($hora_atual >= 8 && $hora_atual < 18) && ($dia_semana >= 1 && $dia_semana <= 5);
 }
+
+
+// /includes/functions.php
+function buscarNotificacoesComFiltros($pdo, $filtros = []) {
+    $where = [];
+    $params = [];
+    
+    if (!empty($filtros['tipo'])) {
+        $where[] = "tipo = ?";
+        $params[] = $filtros['tipo'];
+    }
+    
+    if (!empty($filtros['data_inicio'])) {
+        $where[] = "data_criacao >= ?";
+        $params[] = $filtros['data_inicio'];
+    }
+    
+    if (!empty($filtros['data_fim'])) {
+        $where[] = "data_criacao <= ?";
+        $params[] = $filtros['data_fim'];
+    }
+    
+    $whereClause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+    
+    $sql = "SELECT 
+        n.*,
+        COUNT(DISTINCT usuario_id) as total_usuarios,
+        ROUND(AVG(CASE WHEN lida = 1 THEN 1 ELSE 0 END) * 100, 2) as taxa_leitura
+        FROM notificacoes n
+        $whereClause
+        GROUP BY n.id
+        ORDER BY n.data_criacao DESC";
+        
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function registrarExportacao($pdo, $admin_id, $tipo, $formato, $filtros = null) {
+    $stmt = $pdo->prepare("
+        INSERT INTO exportacoes_log 
+        (admin_id, tipo, formato, filtros) 
+        VALUES (?, ?, ?, ?)
+    ");
+    return $stmt->execute([$admin_id, $tipo, $formato, json_encode($filtros)]);
+}
 ?>

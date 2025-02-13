@@ -42,3 +42,36 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+
+$(document).ready(function() {
+    // Preview em tempo real
+    $('input[name="titulo"], textarea[name="mensagem"]').on('input', function() {
+        atualizarPreview();
+    });
+    
+    // Exportação para Excel
+    $('#exportarExcel').click(function() {
+        window.location.href = 'export_notifications.php?format=excel&' + $.param(getFiltros());
+    });
+    
+    // Filtros dinâmicos
+    $('#aplicarFiltros').click(function() {
+        refreshTable();
+    });
+    
+    // Função para atualizar tabela
+    function refreshTable() {
+        $('#notificacoesTable').DataTable().ajax.reload();
+    }
+    
+    // Função para preview
+    function atualizarPreview() {
+        const titulo = $('input[name="titulo"]').val();
+        const mensagem = $('textarea[name="mensagem"]').val();
+        $('.preview-box').html(`
+            <h5>${titulo}</h5>
+            <p>${mensagem}</p>
+        `);
+    }
+});

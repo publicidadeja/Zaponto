@@ -3,6 +3,9 @@ session_start();
 include '../../includes/db.php';
 include '../../includes/admin-auth.php';
 
+require_once '../../vendor/autoload.php';
+
+
 // Verificar se é admin
 redirecionarSeNaoAdmin();
 
@@ -53,19 +56,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Buscar histórico de notificações
 try {
     $query = "
-        SELECT 
-            n.id,
-            n.tipo,
-            n.titulo,
-            n.mensagem,
-            n.data_criacao,
-            COUNT(DISTINCT n.usuario_id) as total_usuarios,
-            COUNT(CASE WHEN n.lida = 1 THEN 1 END) as total_lidas
-        FROM notificacoes n
-        GROUP BY n.id, n.tipo, n.titulo, n.mensagem, n.data_criacao
-        ORDER BY n.data_criacao DESC
-        LIMIT 100
-    ";
+    SELECT 
+        n.id,
+        n.tipo,
+        n.titulo,
+        n.mensagem,
+        n.data_criacao,
+        COUNT(DISTINCT n.usuario_id) as total_usuarios,
+        COUNT(CASE WHEN n.lida = 1 THEN 1 END) as total_lidas,
+        ROUND((COUNT(CASE WHEN n.lida = 1 THEN 1 END) * 100.0 / COUNT(*)), 2) as taxa_leitura,
+        MAX(n.data_leitura) as ultima_leitura
+    FROM notificacoes n
+    WHERE 1=1
+    " . ($filtroTipo ? " AND n.tipo = :tipo" : "") . "
+    " . ($dataInicio ? " AND n.data_criacao >= :data_inicio" : "") . "
+    " . ($dataFim ? " AND n.data_criacao <= :data_fim" : "") . "
+    GROUP BY n.id, n.tipo, n.titulo, n.mensagem, n.data_criacao
+    ORDER BY n.data_criacao DESC
+";
     
     $stmt = $pdo->prepare($query);
     $stmt->execute();
@@ -75,6 +83,8 @@ try {
     $_SESSION['erro'] = "Erro ao carregar notificações: " . $e->getMessage();
     $notificacoes = [];
 }
+
+
 ?>
 
 <!DOCTYPE html>
@@ -118,10 +128,67 @@ try {
                 padding: 1rem;
             }
         }
+
+        /* /assets/style.css */
+.filtros-container {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.filtros-container .form-group {
+    margin-bottom: 15px;
+}
+
+.export-buttons {
+    margin-bottom: 20px;
+}
+
+.export-buttons .btn {
+    margin-right: 10px;
+}
+
+.stats-card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.stats-card .title {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+.stats-card .value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #333;
+}
+
+.notification-preview {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    margin-top: 10px;
+}
+
+.segmentation-options {
+    margin-top: 15px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
     </style>
 </head>
 <body>
 <?php include 'menu.php'; ?>
+
     
     <div class="main-content">
         <div class="container-fluid">
@@ -132,6 +199,41 @@ try {
                     <i class="fas fa-plus-circle me-2"></i>Nova Notificação
                 </button>
             </div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5>Total de Notificações</h5>
+                <h2><?php echo $totalNotificacoes; ?></h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5>Taxa Média de Leitura</h5>
+                <h2><?php echo number_format($taxaMediaLeitura, 1); ?>%</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h5>Notificações Hoje</h5>
+                <h2><?php echo $notificacoesHoje; ?></h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <h5>Usuários Ativos</h5>
+                <h2><?php echo $usuariosAtivos; ?></h2>
+            </div>
+        </div>
+    </div>
+</div>
             
             <!-- Alerts -->
             <?php if (isset($_SESSION['mensagem'])): ?>
@@ -153,6 +255,67 @@ try {
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             <?php endif; ?>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form class="row g-3">
+            <div class="col-md-3">
+                <label>Filtrar por Tipo</label>
+                <select class="form-select" id="filtroTipo">
+                    <option value="">Todos</option>
+                    <option value="sistema">Sistema</option>
+                    <option value="plano">Plano</option>
+                    <option value="aviso">Aviso</option>
+                    <option value="atualizacao">Atualização</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label>Data Início</label>
+                <input type="date" class="form-control" id="dataInicio">
+            </div>
+            <div class="col-md-3">
+                <label>Data Fim</label>
+                <input type="date" class="form-control" id="dataFim">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="button" class="btn btn-primary" id="aplicarFiltros">
+                    <i class="fas fa-filter me-2"></i>Aplicar Filtros
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<div class="btn-group mb-3">
+    <button class="btn btn-success" id="exportarExcel">
+        <i class="fas fa-file-excel me-2"></i>Exportar Excel
+    </button>
+    <button class="btn btn-danger" id="exportarPDF">
+        <i class="fas fa-file-pdf me-2"></i>Exportar PDF
+    </button>
+</div>
+
+<div class="modal-body">
+    <div class="mb-3">
+        <label class="form-label">Agendar Envio</label>
+        <input type="datetime-local" name="data_agendamento" class="form-control">
+    </div>
+    
+    <div class="mb-3">
+        <label class="form-label">Segmentação de Usuários</label>
+        <select name="segmentacao" class="form-select">
+            <option value="todos">Todos os Usuários</option>
+            <option value="plano_ativo">Apenas Planos Ativos</option>
+            <option value="plano_vencendo">Planos Próximos ao Vencimento</option>
+        </select>
+    </div>
+    
+    <div class="mb-3">
+        <label class="form-label">Preview da Notificação</label>
+        <div class="preview-box p-3 border rounded"></div>
+    </div>
+</div>
             
             <!-- Notifications Table -->
             <div class="card">
@@ -199,6 +362,7 @@ try {
             </div>
         </div>
     </div>
+
     
     <!-- Modal Nova Notificação -->
     <div class="modal fade" id="modalNovaNotificacao" tabindex="-1">
