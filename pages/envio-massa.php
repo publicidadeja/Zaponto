@@ -11,6 +11,7 @@ if (!isset($_SESSION['usuario_id'])) {
 include '../includes/db.php';
 include '../includes/functions.php';
 
+
 // Funções auxiliares
 function buscarDispositivosConectados($pdo, $usuario_id) {
     $stmt = $pdo->prepare("SELECT d.*, u.mensagem_base FROM dispositivos d 
@@ -27,6 +28,7 @@ function buscarMensagemBaseUsuario($pdo, $usuario_id) {
     $usuario = $stmt->fetch();
     return $usuario['mensagem_base'] ?? '';
 }
+
 
 function buscarLeadsUsuario($pdo, $usuario_id) {
     $query = "SELECT l.*, d.nome as dispositivo_nome 
@@ -734,24 +736,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         // Manipula o envio do formulário
         $('#massMessageForm').submit(function(e) {
-            e.preventDefault();
+    e.preventDefault();
+    
+    const selectedLeads = $('.lead-checkbox:checked').length;
+    if (selectedLeads === 0) {
+        alert('Por favor, selecione pelo menos um lead para envio.');
+        return false;
+    }
 
-            const selectedLeads = $('.lead-checkbox:checked').length;
-            if (selectedLeads === 0) {
-                alert('Por favor, selecione pelo menos um lead para envio.');
-                return false;
-            }
-
-            if (confirm(`Confirma o envio para ${selectedLeads} leads?`)) {
-                // Mostra a seção de progresso
-                $('#progressSection').removeClass('d-none');
-                $('#totalCount').text(selectedLeads);
-
-                // Submete o formulário
-                this.submit();
+    if (confirm(`Confirma o envio para ${selectedLeads} leads?`)) {
+        const formData = new FormData(this);
+        
+        $.ajax({
+            url: $(this).attr('action'),
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                // Inicia o monitoramento do progresso real
+                iniciarMonitoramentoProgresso();
+            },
+            error: function(xhr, status, error) {
+                alert('Erro ao iniciar o envio: ' + error);
             }
         });
-
+    }
+});
         // Manipula a seleção por intervalo de datas
         $('input[name="data_inicio"], input[name="data_fim"]').change(function() {
             const dataInicio = $('input[name="data_inicio"]').val();
@@ -1340,6 +1351,44 @@ $('#massMessageForm').submit(function(e) {
         this.submit();
     }
 });
+
+function iniciarMonitoramentoProgresso() {
+    // Mostra o container de progresso
+    $('#progressContainer').removeClass('d-none');
+    
+    // Inicia o monitoramento
+    verificarProgressoFila();
+    const progressInterval = setInterval(verificarProgressoFila, 2000); // Verifica a cada 2 segundos
+
+    function verificarProgressoFila() {
+        fetch('check_queue_status.php')
+            .then(response => response.json())
+            .then(data => {
+                // Atualiza a barra de progresso
+                const progressBar = document.getElementById('progressBar');
+                const progressText = document.getElementById('progressText');
+                const currentMessage = document.getElementById('currentMessage');
+                const totalMessages = document.getElementById('totalMessages');
+                
+                progressBar.style.width = data.progress + '%';
+                progressText.textContent = data.progress + '%';
+                currentMessage.textContent = data.sent;
+                totalMessages.textContent = (data.sent + data.pending + data.failed);
+
+                // Se não houver mais mensagens pendentes, para o monitoramento
+                if (data.status === 'completed') {
+                    clearInterval(progressInterval);
+                    setTimeout(() => {
+                        alert('Envio concluído!');
+                    }, 1000);
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao verificar progresso:', error);
+            });
+    } 
+}
+
 </script>
 </body>
 </html>

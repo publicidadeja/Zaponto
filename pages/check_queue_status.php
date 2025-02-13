@@ -13,14 +13,14 @@ if (!isset($_SESSION['usuario_id'])) {
 try {
     // Consultar status da fila
     $stmt = $pdo->prepare("
-        SELECT 
-            COUNT(*) as total,
-            SUM(CASE WHEN status = 'ENVIADO' THEN 1 ELSE 0 END) as sent,
-            SUM(CASE WHEN status = 'PENDENTE' THEN 1 ELSE 0 END) as pending,
-            SUM(CASE WHEN status = 'ERRO' THEN 1 ELSE 0 END) as failed
-        FROM fila_mensagens 
-        WHERE usuario_id = ?
-    ");
+    SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'ENVIADO' THEN 1 ELSE 0 END) as sent,
+        SUM(CASE WHEN status = 'PENDENTE' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'ERRO' THEN 1 ELSE 0 END) as failed
+    FROM fila_mensagens 
+    WHERE usuario_id = ?
+");
     $stmt->execute([$_SESSION['usuario_id']]);
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
