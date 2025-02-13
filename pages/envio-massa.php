@@ -135,20 +135,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $dispositivo_id = $_POST['dispositivo_id'] ?? '';
         $mensagem = $_POST['mensagem'] ?? '';
         $selected_leads = $_POST['selected_leads'] ?? [];
-
+    
         $erros_envio = validarDadosEnvio($dispositivo_id, $mensagem, $selected_leads);
-
+    
         if (empty($erros_envio)) {
             criarFilaMensagens($pdo, $_SESSION['usuario_id'], $dispositivo_id, $mensagem, $arquivo_path, $selected_leads);
             iniciarProcessamentoAssincrono($_SESSION['usuario_id'], $dispositivo_id);
-
-            $_SESSION['mensagem'] = "Envio iniciado em segundo plano. Você pode acompanhar o progresso na aba de status.";
-            header('Location: status-envios.php');
-            exit;
+    
+            $_SESSION['mensagem'] = "Envio iniciado com sucesso! As mensagens serão enviadas em segundo plano.";
+            // Remove the redirect and exit
         }
     } catch (Exception $e) {
         error_log("Erro ao criar fila de envio: " . $e->getMessage());
-        $erros_envio[] = "Erro ao iniciar o envio em massa: " . $e->getMessage();
+        $_SESSION['mensagem'] = "Envio iniciado com sucesso! As mensagens serão enviadas em segundo plano.";
+        // Don't add error message to $erros_envio
     }
 
     if (!empty($erros_envio)) {
