@@ -9,48 +9,143 @@ require_once '../../vendor/autoload.php';
 // Verificar se é admin
 redirecionarSeNaoAdmin();
 
+try {
+    // Estatísticas gerais
+    $stmt = $pdo->query("
+        SELECT 
+            COUNT(DISTINCT id) as total_notificacoes,
+            ROUND(AVG(CASE WHEN lida = 1 THEN 1 ELSE 0 END) * 100, 2) as taxa_media_leitura
+        FROM notificacoes
+    ");
+    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+    $totalNotificacoes = $stats['total_notificacoes'];
+    $taxaMediaLeitura = $stats['taxa_media_leitura'];
+
+    // Notificações de hoje
+    $stmt = $pdo->query("
+        SELECT COUNT(DISTINCT id) as total 
+        FROM notificacoes 
+        WHERE DATE(data_criacao) = CURDATE()
+    ");
+    $notificacoesHoje = $stmt->fetch(PDO::FETCH_COLUMN);
+
+    // Usuários ativos
+    $stmt = $pdo->query("
+        SELECT COUNT(id) as total 
+        FROM usuarios 
+        WHERE status = 'ativo'
+    ");
+    $usuariosAtivos = $stmt->fetch(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    $_SESSION['erro'] = "Erro ao carregar estatísticas: " . $e->getMessage();
+}
+
 // Processar o envio de nova notificação
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        $pdo->beginTransaction();
+        
         $titulo = trim($_POST['titulo']);
         $mensagem = trim($_POST['mensagem']);
         $tipo = $_POST['tipo'];
+        $segmentacao = $_POST['segmentacao'];
+        $tipoEnvio = $_POST['tipo_envio'];
         
-        // Buscar todos os usuários ativos
-        $stmt = $pdo->query("SELECT id FROM usuarios WHERE status = 'ativo'");
-        $usuarios = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        // Validações básicas
+        if (empty($titulo) || empty($mensagem)) {
+            throw new Exception("Título e mensagem são obrigatórios");
+        }
+
+        if ($tipoEnvio === 'agendado') {
+            $dataAgendamento = $_POST['data_agendamento'];
+            
+            if (empty($dataAgendamento)) {
+                throw new Exception("Data de agendamento é obrigatória");
+            }
+
+            // Inserir na tabela de notificações agendadas
+            $stmt = $pdo->prepare("
+                INSERT INTO notificacoes_agendadas 
+                (titulo, mensagem, tipo, data_agendamento, segmentacao, status) 
+                VALUES (?, ?, ?, ?, ?, 'pendente')
+            ");
+            $stmt->execute([$titulo, $mensagem, $tipo, $dataAgendamento, $segmentacao]);
+            
+            $_SESSION['sucesso'] = "Notificação agendada com sucesso para " . date('d/m/Y H:i', strtotime($dataAgendamento));
         
-        if (empty($usuarios)) {
-            throw new Exception("Nenhum usuário ativo encontrado.");
+        } else {
+            // Envio imediato
+            // Buscar usuários baseado na segmentação
+            $query = "SELECT id FROM usuarios WHERE status = 'ativo'";
+            
+            if ($segmentacao === 'plano_ativo') {
+                $query .= " AND EXISTS (
+                    SELECT 1 FROM assinaturas 
+                    WHERE usuario_id = usuarios.id 
+                    AND status = 'ativo'
+                )";
+            } elseif ($segmentacao === 'plano_vencendo') {
+                $query .= " AND EXISTS (
+                    SELECT 1 FROM assinaturas 
+                    WHERE usuario_id = usuarios.id 
+                    AND status = 'ativo' 
+                    AND data_fim <= DATE_ADD(NOW(), INTERVAL 5 DAY)
+                )";
+            }
+            
+            $stmtUsers = $pdo->query($query);
+            $usuarios = $stmtUsers->fetchAll(PDO::FETCH_COLUMN);
+            
+            if (empty($usuarios)) {
+                throw new Exception("Nenhum usuário encontrado para os critérios selecionados");
+            }
+
+            // Criar notificação para cada usuário
+            foreach ($usuarios as $usuario_id) {
+                $stmt = $pdo->prepare("
+                    INSERT INTO notificacoes 
+                    (usuario_id, tipo, titulo, mensagem, data_criacao, lida) 
+                    VALUES (?, ?, ?, ?, NOW(), 0)
+                ");
+                $stmt->execute([$usuario_id, $tipo, $titulo, $mensagem]);
+            }
+            
+            $_SESSION['sucesso'] = "Notificação enviada com sucesso para " . count($usuarios) . " usuários";
         }
         
-        // Iniciar transação
-        $pdo->beginTransaction();
-        
-        // Preparar query para inserção
-        $stmt = $pdo->prepare("
-            INSERT INTO notificacoes (usuario_id, tipo, titulo, mensagem, data_criacao) 
-            VALUES (?, ?, ?, ?, NOW())
-        ");
-        
-        // Inserir notificação para cada usuário
-        foreach ($usuarios as $usuario_id) {
-            $stmt->execute([$usuario_id, $tipo, $titulo, $mensagem]);
-        }
-        
-        // Confirmar transação
         $pdo->commit();
-        
-        $_SESSION['mensagem'] = "Notificação enviada com sucesso para " . count($usuarios) . " usuários!";
-        header('Location: notificacoes.php');
-        exit;
         
     } catch (Exception $e) {
         $pdo->rollBack();
-        $_SESSION['erro'] = "Erro ao enviar notificação: " . $e->getMessage();
-        header('Location: notificacoes.php');
-        exit;
+        $_SESSION['erro'] = "Erro ao processar notificação: " . $e->getMessage();
     }
+    
+    header('Location: notificacoes.php');
+    exit;
+}
+
+// Adicionar antes da query de busca de notificações
+$filtroTipo = isset($_GET['tipo']) ? $_GET['tipo'] : '';
+$dataInicio = isset($_GET['data_inicio']) ? $_GET['data_inicio'] : '';
+$dataFim = isset($_GET['data_fim']) ? $_GET['data_fim'] : '';
+
+// Preparar parâmetros para a query
+$params = [];
+$whereConditions = [];
+
+if ($filtroTipo) {
+    $whereConditions[] = "n.tipo = :tipo";
+    $params[':tipo'] = $filtroTipo;
+}
+
+if ($dataInicio) {
+    $whereConditions[] = "n.data_criacao >= :data_inicio";
+    $params[':data_inicio'] = $dataInicio . ' 00:00:00';
+}
+
+if ($dataFim) {
+    $whereConditions[] = "n.data_criacao <= :data_fim";
+    $params[':data_fim'] = $dataFim . ' 23:59:59';
 }
 
 // Buscar histórico de notificações
@@ -365,45 +460,82 @@ try {
 
     
     <!-- Modal Nova Notificação -->
-    <div class="modal fade" id="modalNovaNotificacao" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Nova Notificação</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <form method="POST" id="formNotificacao">
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Tipo da Notificação</label>
-                            <select name="tipo" class="form-select" required>
-                                <option value="sistema">Sistema</option>
-                                <option value="plano">Plano</option>
-                                <option value="aviso">Aviso</option>
-                                <option value="atualizacao">Atualização</option>
-                            </select>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Título</label>
-                            <input type="text" name="titulo" class="form-control" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Mensagem</label>
-                            <textarea name="mensagem" class="form-control" rows="4" required></textarea>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-paper-plane me-2"></i>Enviar Notificação
-                        </button>
-                    </div>
-                </form>
+<div class="modal fade" id="modalNovaNotificacao" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nova Notificação</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
+            <form method="POST" id="formNotificacao">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <!-- Campos básicos -->
+                            <div class="mb-3">
+                                <label class="form-label">Tipo da Notificação</label>
+                                <select name="tipo" class="form-select" required>
+                                    <option value="sistema">Sistema</option>
+                                    <option value="plano">Plano</option>
+                                    <option value="aviso">Aviso</option>
+                                    <option value="atualizacao">Atualização</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Título</label>
+                                <input type="text" name="titulo" class="form-control" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Mensagem</label>
+                                <textarea name="mensagem" class="form-control" rows="4" required></textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <!-- Opções de agendamento -->
+                            <div class="mb-3">
+                                <label class="form-label">Tipo de Envio</label>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="tipo_envio" value="imediato" id="envioImediato" checked>
+                                    <label class="form-check-label" for="envioImediato">
+                                        Enviar imediatamente
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="tipo_envio" value="agendado" id="envioAgendado">
+                                    <label class="form-check-label" for="envioAgendado">
+                                        Agendar envio
+                                    </label>
+                                </div>
+                                <div id="campoDataAgendamento" class="mt-2 d-none">
+                                    <input type="datetime-local" name="data_agendamento" class="form-control">
+                                </div>
+                            </div>
+                            
+                            <!-- Segmentação -->
+                            <div class="mb-3">
+                                <label class="form-label">Segmentação de Usuários</label>
+                                <select name="segmentacao" class="form-select">
+                                    <option value="todos">Todos os Usuários</option>
+                                    <option value="plano_ativo">Apenas Planos Ativos</option>
+                                    <option value="plano_vencendo">Planos Próximos ao Vencimento</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane me-2"></i>Enviar Notificação
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
+</div>
 
     <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -434,6 +566,96 @@ try {
                 $('.alert').alert('close');
             }, 5000);
         });
+
+        $('#aplicarFiltros').click(function() {
+    const tipo = $('#filtroTipo').val();
+    const dataInicio = $('#dataInicio').val();
+    const dataFim = $('#dataFim').val();
+    
+    let url = 'notificacoes.php?';
+    if (tipo) url += `tipo=${tipo}&`;
+    if (dataInicio) url += `data_inicio=${dataInicio}&`;
+    if (dataFim) url += `data_fim=${dataFim}`;
+    
+    window.location.href = url;
+});
+
+// Exportação
+$('#exportarExcel').click(function() {
+    const filtros = {
+        tipo: $('#filtroTipo').val(),
+        data_inicio: $('#dataInicio').val(),
+        data_fim: $('#dataFim').val()
+    };
+    
+    window.location.href = `../ajax/export_notifications.php?formato=excel&${$.param(filtros)}`;
+});
+
+$('#exportarPDF').click(function() {
+    const filtros = {
+        tipo: $('#filtroTipo').val(),
+        data_inicio: $('#dataInicio').val(),
+        data_fim: $('#dataFim').val()
+    };
+    
+    window.location.href = `../ajax/export_notifications.php?formato=pdf&${$.param(filtros)}`;
+});
+
+// Preview da notificação
+$('input[name="titulo"], textarea[name="mensagem"]').on('input', function() {
+    const titulo = $('input[name="titulo"]').val();
+    const mensagem = $('textarea[name="mensagem"]').val();
+    
+    $('.preview-box').html(`
+        <h5>${titulo}</h5>
+        <p>${mensagem}</p>
+    `);
+});
     </script>
+
+<script>
+$(document).ready(function() {
+    // Controle de exibição do campo de agendamento
+    $('input[name="tipo_envio"]').change(function() {
+        if ($(this).val() === 'agendado') {
+            $('#campoDataAgendamento').removeClass('d-none');
+            $('input[name="data_agendamento"]').prop('required', true);
+        } else {
+            $('#campoDataAgendamento').addClass('d-none');
+            $('input[name="data_agendamento"]').prop('required', false);
+        }
+    });
+
+    // Preview em tempo real
+    $('input[name="titulo"], textarea[name="mensagem"]').on('input', function() {
+        const titulo = $('input[name="titulo"]').val();
+        const mensagem = $('textarea[name="mensagem"]').val();
+        $('.preview-box').html(`
+            <h5>${titulo || 'Título da notificação'}</h5>
+            <p>${mensagem || 'Conteúdo da mensagem'}</p>
+        `);
+    });
+
+    // Validação e submissão do formulário
+    $('#formNotificacao').on('submit', function(e) {
+        e.preventDefault();
+        
+        const tipoEnvio = $('input[name="tipo_envio"]:checked').val();
+        if (tipoEnvio === 'agendado') {
+            const dataAgendamento = $('input[name="data_agendamento"]').val();
+            if (!dataAgendamento) {
+                alert('Por favor, selecione uma data para o agendamento.');
+                return false;
+            }
+        }
+
+        // Desabilitar botão para evitar duplo envio
+        $(this).find('button[type="submit"]').prop('disabled', true);
+        
+        // Enviar formulário
+        this.submit();
+    });
+});
+</script>
 </body>
 </html>

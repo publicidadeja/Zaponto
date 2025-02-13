@@ -23,6 +23,15 @@ function marcarNotificacaoComoLida($pdo, $notificacao_id, $usuario_id) {
     return $stmt->execute([$notificacao_id, $usuario_id]);
 }
 
+function agendarNotificacao($pdo, $titulo, $mensagem, $tipo, $data_agendamento, $segmentacao) {
+    $stmt = $pdo->prepare("
+        INSERT INTO notificacoes_agendadas 
+        (titulo, mensagem, tipo, data_agendamento, segmentacao, status) 
+        VALUES (?, ?, ?, ?, ?, 'pendente')
+    ");
+    return $stmt->execute([$titulo, $mensagem, $tipo, $data_agendamento, $segmentacao]);
+}
+
 function verificarNotificacoes($pdo, $usuario_id) {
     // Verificar plano
     $stmt = $pdo->prepare("SELECT * FROM assinaturas WHERE usuario_id = ? AND status = 'ativo' ORDER BY data_fim DESC LIMIT 1");
