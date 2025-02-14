@@ -44,82 +44,95 @@ try {
 // Processar o envio de nova notificação
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $pdo->beginTransaction();
-        
-        $titulo = trim($_POST['titulo']);
-        $mensagem = trim($_POST['mensagem']);
-        $tipo = $_POST['tipo'];
-        $segmentacao = $_POST['segmentacao'];
-        $tipoEnvio = $_POST['tipo_envio'];
-        
-        // Validações básicas
-        if (empty($titulo) || empty($mensagem)) {
-            throw new Exception("Título e mensagem são obrigatórios");
-        }
-
-        if ($tipoEnvio === 'agendado') {
-            $dataAgendamento = $_POST['data_agendamento'];
-            $dataAtual = date('Y-m-d H:i:s');
+        // Se for uma requisição de exclusão
+        if (isset($_POST['excluir_notificacao'])) {
+            $id = (int)$_POST['id'];
+            $admin_id = $_SESSION['admin_id'];
             
-            if (strtotime($dataAgendamento) <= strtotime($dataAtual)) {
-                throw new Exception("Data de agendamento deve ser futura");
+            if (excluirNotificacao($pdo, $id, $admin_id)) {
+                $_SESSION['sucesso'] = "Notificação excluída com sucesso";
             }
-        
-
-            // Inserir na tabela de notificações agendadas
-            $stmt = $pdo->prepare("
-                INSERT INTO notificacoes_agendadas 
-                (titulo, mensagem, tipo, data_agendamento, segmentacao, status) 
-                VALUES (?, ?, ?, ?, ?, 'pendente')
-            ");
-            $stmt->execute([$titulo, $mensagem, $tipo, $dataAgendamento, $segmentacao]);
+        } 
+        // Se for uma requisição para criar/enviar notificação
+        else {
+            $pdo->beginTransaction();
             
-            $_SESSION['sucesso'] = "Notificação agendada com sucesso para " . date('d/m/Y H:i', strtotime($dataAgendamento));
-        
-        } else {
-            // Envio imediato
-            // Buscar usuários baseado na segmentação
-            $query = "SELECT id FROM usuarios WHERE status = 'ativo'";
+            $titulo = trim($_POST['titulo']);
+            $mensagem = trim($_POST['mensagem']);
+            $tipo = $_POST['tipo'];
+            $segmentacao = $_POST['segmentacao'];
+            $tipoEnvio = $_POST['tipo_envio'];
             
-            if ($segmentacao === 'plano_ativo') {
-                $query .= " AND EXISTS (
-                    SELECT 1 FROM assinaturas 
-                    WHERE usuario_id = usuarios.id 
-                    AND status = 'ativo'
-                )";
-            } elseif ($segmentacao === 'plano_vencendo') {
-                $query .= " AND EXISTS (
-                    SELECT 1 FROM assinaturas 
-                    WHERE usuario_id = usuarios.id 
-                    AND status = 'ativo' 
-                    AND data_fim <= DATE_ADD(NOW(), INTERVAL 5 DAY)
-                )";
-            }
-            
-            $stmtUsers = $pdo->query($query);
-            $usuarios = $stmtUsers->fetchAll(PDO::FETCH_COLUMN);
-            
-            if (empty($usuarios)) {
-                throw new Exception("Nenhum usuário encontrado para os critérios selecionados");
+            // Validações básicas
+            if (empty($titulo) || empty($mensagem)) {
+                throw new Exception("Título e mensagem são obrigatórios");
             }
 
-            // Criar notificação para cada usuário
-            foreach ($usuarios as $usuario_id) {
+            if ($tipoEnvio === 'agendado') {
+                $dataAgendamento = $_POST['data_agendamento'];
+                $dataAtual = date('Y-m-d H:i:s');
+                
+                if (strtotime($dataAgendamento) <= strtotime($dataAtual)) {
+                    throw new Exception("Data de agendamento deve ser futura");
+                }
+            
+                // Inserir na tabela de notificações agendadas
                 $stmt = $pdo->prepare("
-                    INSERT INTO notificacoes 
-                    (usuario_id, tipo, titulo, mensagem, data_criacao, lida) 
-                    VALUES (?, ?, ?, ?, NOW(), 0)
+                    INSERT INTO notificacoes_agendadas 
+                    (titulo, mensagem, tipo, data_agendamento, segmentacao, status) 
+                    VALUES (?, ?, ?, ?, ?, 'pendente')
                 ");
-                $stmt->execute([$usuario_id, $tipo, $titulo, $mensagem]);
+                $stmt->execute([$titulo, $mensagem, $tipo, $dataAgendamento, $segmentacao]);
+                
+                $_SESSION['sucesso'] = "Notificação agendada com sucesso para " . date('d/m/Y H:i', strtotime($dataAgendamento));
+            
+            } else {
+                // Envio imediato
+                // Buscar usuários baseado na segmentação
+                $query = "SELECT id FROM usuarios WHERE status = 'ativo'";
+                
+                if ($segmentacao === 'plano_ativo') {
+                    $query .= " AND EXISTS (
+                        SELECT 1 FROM assinaturas 
+                        WHERE usuario_id = usuarios.id 
+                        AND status = 'ativo'
+                    )";
+                } elseif ($segmentacao === 'plano_vencendo') {
+                    $query .= " AND EXISTS (
+                        SELECT 1 FROM assinaturas 
+                        WHERE usuario_id = usuarios.id 
+                        AND status = 'ativo' 
+                        AND data_fim <= DATE_ADD(NOW(), INTERVAL 5 DAY)
+                    )";
+                }
+                
+                $stmtUsers = $pdo->query($query);
+                $usuarios = $stmtUsers->fetchAll(PDO::FETCH_COLUMN);
+                
+                if (empty($usuarios)) {
+                    throw new Exception("Nenhum usuário encontrado para os critérios selecionados");
+                }
+
+                // Criar notificação para cada usuário
+                foreach ($usuarios as $usuario_id) {
+                    $stmt = $pdo->prepare("
+                        INSERT INTO notificacoes 
+                        (usuario_id, tipo, titulo, mensagem, data_criacao, lida) 
+                        VALUES (?, ?, ?, ?, NOW(), 0)
+                    ");
+                    $stmt->execute([$usuario_id, $tipo, $titulo, $mensagem]);
+                }
+                
+                $_SESSION['sucesso'] = "Notificação enviada com sucesso para " . count($usuarios) . " usuários";
             }
             
-            $_SESSION['sucesso'] = "Notificação enviada com sucesso para " . count($usuarios) . " usuários";
+            $pdo->commit();
         }
-        
-        $pdo->commit();
         
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if (isset($pdo) && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         $_SESSION['erro'] = "Erro ao processar notificação: " . $e->getMessage();
     }
     
@@ -189,19 +202,24 @@ function excluirNotificacao($pdo, $id, $admin_id) {
     try {
         $pdo->beginTransaction();
         
-        // Registrar a exclusão
+        // Primeiro verifica se a notificação existe
+        $stmt = $pdo->prepare("SELECT id FROM notificacoes WHERE id = ?");
+        $stmt->execute([$id]);
+        
+        if (!$stmt->fetch()) {
+            throw new Exception("Notificação não encontrada");
+        }
+        
+        // Registra a exclusão
         $stmt = $pdo->prepare("
             INSERT INTO notificacoes_excluidas 
-            (notificacao_id, admin_id) 
-            VALUES (?, ?)
+            (notificacao_id, admin_id, data_exclusao) 
+            VALUES (?, ?, NOW())
         ");
         $stmt->execute([$id, $admin_id]);
         
-        // Excluir notificações dos usuários
-        $stmt = $pdo->prepare("
-            DELETE FROM notificacoes 
-            WHERE id = ?
-        ");
+        // Exclui a notificação
+        $stmt = $pdo->prepare("DELETE FROM notificacoes WHERE id = ?");
         $stmt->execute([$id]);
         
         $pdo->commit();
@@ -770,33 +788,32 @@ function validarFiltros($filtros) {
 $(document).ready(function() {
     // Manipulador para botão de exclusão
     $('.excluir-notificacao').click(function() {
-        const id = $(this).data('id');
+    const id = $(this).data('id');
+    
+    if (confirm('Tem certeza que deseja excluir esta notificação? Esta ação não pode ser desfeita.')) {
+        const form = $('<form>', {
+            'method': 'POST',
+            'action': 'notificacoes.php'
+        });
         
-        if (confirm('Tem certeza que deseja excluir esta notificação? Esta ação não pode ser desfeita.')) {
-            // Criar formulário dinâmico para envio
-            const form = $('<form>', {
-                'method': 'POST',
-                'action': 'notificacoes.php'
-            });
-            
-            // Adicionar campos ocultos
-            form.append($('<input>', {
-                'type': 'hidden',
-                'name': 'excluir_notificacao',
-                'value': '1'
-            }));
-            
-            form.append($('<input>', {
-                'type': 'hidden',
-                'name': 'id',
-                'value': id
-            }));
-            
-            // Adicionar ao documento e enviar
-            $('body').append(form);
-            form.submit();
-        }
-    });
+        // Adiciona campo para identificar que é uma exclusão
+        form.append($('<input>', {
+            'type': 'hidden',
+            'name': 'excluir_notificacao',
+            'value': '1'
+        }));
+        
+        // Adiciona o ID da notificação
+        form.append($('<input>', {
+            'type': 'hidden',
+            'name': 'id',
+            'value': id
+        }));
+        
+        $('body').append(form);
+        form.submit();
+    }
+});
 
     // Atualizar tabela após exclusão
     if ($('.alert-success').length) {
