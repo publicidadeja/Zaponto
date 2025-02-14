@@ -1,5 +1,6 @@
 <?php
 session_start();
+header('Content-Type: text/html; charset=utf-8');
 include '../../includes/db.php';
 include '../../includes/admin-auth.php';
 
@@ -12,11 +13,11 @@ redirecionarSeNaoAdmin();
 try {
     // Estatísticas gerais
     $stmt = $pdo->query("
-        SELECT 
-            COUNT(DISTINCT id) as total_notificacoes,
-            ROUND(AVG(CASE WHEN lida = 1 THEN 1 ELSE 0 END) * 100, 2) as taxa_media_leitura
-        FROM notificacoes
-    ");
+    SELECT 
+        COUNT(DISTINCT id) as total_notificacoes,
+        COALESCE(ROUND(AVG(CASE WHEN lida = 1 THEN 1 ELSE 0 END) * 100, 2), 0) as taxa_media_leitura
+    FROM notificacoes
+");
     $stats = $stmt->fetch(PDO::FETCH_ASSOC);
     $totalNotificacoes = $stats['total_notificacoes'];
     $taxaMediaLeitura = $stats['taxa_media_leitura'];
@@ -58,10 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($tipoEnvio === 'agendado') {
             $dataAgendamento = $_POST['data_agendamento'];
+            $dataAtual = date('Y-m-d H:i:s');
             
-            if (empty($dataAgendamento)) {
-                throw new Exception("Data de agendamento é obrigatória");
+            if (strtotime($dataAgendamento) <= strtotime($dataAtual)) {
+                throw new Exception("Data de agendamento deve ser futura");
             }
+        
 
             // Inserir na tabela de notificações agendadas
             $stmt = $pdo->prepare("
@@ -678,6 +681,44 @@ $('#exportarPDF').click(function() {
     
     window.location.href = '../ajax/export_notifications.php?' + $.param(filtros);
 });
+
+function validarSegmentacao($pdo, $segmentacao) {
+    switch($segmentacao) {
+        case 'todos':
+            return true;
+        case 'plano_ativo':
+            return verificarUsuariosComPlanoAtivo($pdo);
+        case 'plano_vencendo':
+            return verificarUsuariosComPlanoVencendo($pdo);
+        default:
+            return false;
+    }
+}
+
+function validarFiltros($filtros) {
+    $filtrosValidos = [];
+    
+    if (!empty($filtros['tipo'])) {
+        $tiposPermitidos = ['sistema', 'plano', 'aviso', 'atualizacao'];
+        if (in_array($filtros['tipo'], $tiposPermitidos)) {
+            $filtrosValidos['tipo'] = $filtros['tipo'];
+        }
+    }
+    
+    if (!empty($filtros['data_inicio'])) {
+        if (strtotime($filtros['data_inicio'])) {
+            $filtrosValidos['data_inicio'] = $filtros['data_inicio'];
+        }
+    }
+    
+    if (!empty($filtros['data_fim'])) {
+        if (strtotime($filtros['data_fim'])) {
+            $filtrosValidos['data_fim'] = $filtros['data_fim'];
+        }
+    }
+    
+    return $filtrosValidos;
+}
 </script>
 </body>
 </html>

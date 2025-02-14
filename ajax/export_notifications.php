@@ -62,6 +62,18 @@ function exportarExcel($dados) {
     exit;
 }
 
+if (!verificarNivelAcesso('admin')) {
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Acesso negado']);
+    exit;
+}
+
+// Validar formato
+$formatosPermitidos = ['excel', 'pdf'];
+if (!in_array($formato, $formatosPermitidos)) {
+    throw new Exception('Formato de exportação inválido');
+}
+
 // Função para exportar PDF
 function exportarPDF($dados) {
     $spreadsheet = new Spreadsheet();

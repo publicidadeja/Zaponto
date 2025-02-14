@@ -32,6 +32,32 @@ function agendarNotificacao($pdo, $titulo, $mensagem, $tipo, $data_agendamento, 
     return $stmt->execute([$titulo, $mensagem, $tipo, $data_agendamento, $segmentacao]);
 }
 
+function getCachedNotifications($pdo, $usuario_id, $tempo_cache = 300) {
+    $cache_key = "notifications_" . $usuario_id;
+    
+    if (isset($_SESSION[$cache_key]) && 
+        (time() - $_SESSION[$cache_key]['time']) < $tempo_cache) {
+        return $_SESSION[$cache_key]['data'];
+    }
+    
+    $notifications = buscarNotificacoes($pdo, $usuario_id);
+    $_SESSION[$cache_key] = [
+        'time' => time(),
+        'data' => $notifications
+    ];
+    
+    return $notifications;
+}
+
+function logNotificationAction($pdo, $acao, $dados) {
+    $stmt = $pdo->prepare("
+        INSERT INTO logs_notificacoes 
+        (acao, dados, data_registro) 
+        VALUES (?, ?, NOW())
+    ");
+    return $stmt->execute([$acao, json_encode($dados)]);
+}
+
 
 function verificarNotificacoes($pdo, $usuario_id) {
     // Verificar plano

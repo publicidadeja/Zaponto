@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(error => {
-                console.error('Erro ao marcar notificação como lida:', error);
+                handleNotificationError(error);
             });
         });
     });
@@ -45,6 +45,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 $(document).ready(function() {
+
+    $('#notificacoesTable').DataTable({
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json'
+        },
+        order: [[0, 'desc']],
+        pageLength: 10,
+        responsive: true,
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '../ajax/get_notifications.php',
+            type: 'POST',
+            data: function(d) {
+                return {
+                    ...d,
+                    ...getFiltros()
+                };
+            }
+        }
+    });
+    
     // Preview em tempo real
     $('input[name="titulo"], textarea[name="mensagem"]').on('input', function() {
         atualizarPreview();
@@ -64,6 +86,12 @@ $(document).ready(function() {
     function refreshTable() {
         $('#notificacoesTable').DataTable().ajax.reload();
     }
+
+    function handleNotificationError(error) {
+        console.error('Erro:', error);
+        alert('Ocorreu um erro ao processar a notificação. Por favor, tente novamente.');
+    }
+
     
     // Função para preview
     function atualizarPreview() {
@@ -75,3 +103,14 @@ $(document).ready(function() {
         `);
     }
 });
+
+function getFiltros() {
+    return {
+        data_inicio: $('#data_inicio').val(),
+        data_fim: $('#data_fim').val(),
+        tipo: $('#tipo').val(),
+        status: $('#status').val()
+    };
+}
+
+
