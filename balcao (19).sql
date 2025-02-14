@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Tempo de geração: 14/02/2025 às 18:10
+-- Tempo de geração: 14/02/2025 às 18:21
 -- Versão do servidor: 10.4.32-MariaDB
 -- Versão do PHP: 8.2.12
 
@@ -618,7 +618,28 @@ INSERT INTO `notificacoes` (`id`, `usuario_id`, `tipo`, `titulo`, `mensagem`, `l
 (21, 9, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0),
 (22, 10, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0),
 (23, 11, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0),
-(24, 12, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0);
+(24, 12, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0),
+(25, 1, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
+(26, 2, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
+(27, 7, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
+(28, 8, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
+(29, 9, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
+(30, 10, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
+(31, 11, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
+(32, 12, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0);
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `notificacoes_excluidas`
+--
+
+CREATE TABLE `notificacoes_excluidas` (
+  `id` int(11) NOT NULL,
+  `notificacao_id` int(11) NOT NULL,
+  `data_exclusao` timestamp NOT NULL DEFAULT current_timestamp(),
+  `admin_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -833,6 +854,14 @@ ALTER TABLE `notificacoes`
   ADD KEY `idx_data_criacao` (`data_criacao`);
 
 --
+-- Índices de tabela `notificacoes_excluidas`
+--
+ALTER TABLE `notificacoes_excluidas`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `notificacao_id` (`notificacao_id`),
+  ADD KEY `admin_id` (`admin_id`);
+
+--
 -- Índices de tabela `pagamentos`
 --
 ALTER TABLE `pagamentos`
@@ -939,7 +968,13 @@ ALTER TABLE `notas_lead`
 -- AUTO_INCREMENT de tabela `notificacoes`
 --
 ALTER TABLE `notificacoes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
+
+--
+-- AUTO_INCREMENT de tabela `notificacoes_excluidas`
+--
+ALTER TABLE `notificacoes_excluidas`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de tabela `pagamentos`
