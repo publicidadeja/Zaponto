@@ -1,6 +1,7 @@
 <?php
 $page_title = "Planos e Preços";
 require_once '../includes/header.php';
+require_once '../includes/stripe-config.php';
 
 // Buscar planos do banco de dados
 $stmt = $pdo->query("SELECT * FROM planos WHERE ativo = 1 AND id != 4 ORDER BY preco ASC");
@@ -43,79 +44,94 @@ $planos = $stmt->fetchAll(PDO::FETCH_ASSOC);
         position: absolute;
         top: 20px;
         right: -35px;
+        transform: rotate(45deg);
         background: var(--primary-color);
         color: white;
         padding: 8px 40px;
-        transform: rotate(45deg);
         font-size: 14px;
         font-weight: bold;
     }
 
     .price-value {
-        font-size: 48px;
+        font-size: 2.5rem;
         font-weight: bold;
         color: var(--primary-color);
         margin: 20px 0;
     }
 
     .price-period {
-        font-size: 16px;
+        font-size: 1rem;
         color: #6c757d;
     }
 
     .feature-list {
         list-style: none;
         padding: 0;
-        margin: 30px 0;
+        margin: 20px 0;
         flex-grow: 1;
     }
 
     .feature-list li {
         padding: 10px 0;
+        color: #666;
         display: flex;
         align-items: center;
-        color: #495057;
     }
 
     .feature-list i {
+        color: var(--primary-color);
         margin-right: 10px;
-        color: var(--success-color);
     }
 
     .cta-button {
-        padding: 15px 30px;
-        border-radius: 50px;
-        font-weight: bold;
-        transition: all 0.3s ease;
         width: 100%;
-    }
-
-    .testimonials {
-        background: #fff;
-        padding: 60px 60px;
-        margin-top: 60px;
-    }
-
-    .testimonial-card {
-        background: #f8f9fa;
-        border-radius: 15px;
         padding: 15px;
-        margin: 40px 0;
-    }
-
-    .testimonial-avatar {
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        margin-right: 15px;
+        font-weight: 600;
+        margin-top: auto;
     }
 
     .guarantee-section {
-        text-align: center;
-        margin: 40px 0;
-        padding: 20px;
-        background: rgba(53, 71, 219, 0.1);
-        border-radius: 15px;
+        margin-top: 80px;
+        padding: 40px;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+    }
+
+    .testimonials {
+        margin-top: 80px;
+        padding: 40px 0;
+    }
+
+    .testimonial-card {
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        margin: 20px 0;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+    }
+
+    .testimonial-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        margin-bottom: 20px;
+    }
+
+    .testimonial-text {
+        font-style: italic;
+        color: #666;
+        margin: 20px 0;
+    }
+
+    .testimonial-author {
+        font-weight: bold;
+        color: var(--primary-color);
+    }
+
+    .testimonial-position {
+        font-size: 0.9rem;
+        color: #6c757d;
     }
 </style>
 
@@ -129,7 +145,7 @@ $planos = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <div class="row">
             <?php 
             foreach ($planos as $index => $plano):
-                $isPopular = $index === 1; // Plano do meio será o popular
+                $isPopular = $index === 1;
             ?>
             <div class="col-lg-4 col-md-6 mb-4">
                 <div class="pricing-card <?php echo $isPopular ? 'popular' : ''; ?>">
@@ -171,7 +187,10 @@ $planos = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </li>
                     </ul>
 
-                    <button class="btn <?php echo $isPopular ? 'btn-primary' : 'btn-outline-primary'; ?> cta-button">
+                    <button 
+                        class="btn <?php echo $isPopular ? 'btn-primary' : 'btn-outline-primary'; ?> cta-button subscribe-button"
+                        data-plan-id="<?php echo $plano['id']; ?>"
+                        data-stripe-price-id="<?php echo htmlspecialchars($plano['stripe_price_id']); ?>">
                         <?php echo $isPopular ? 'Começar Agora' : 'Selecionar Plano'; ?>
                     </button>
                 </div>
@@ -198,39 +217,27 @@ $planos = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <h2 class="text-center mb-5">O que nossos clientes dizem</h2>
             <div class="row">
                 <div class="col-md-4">
-                    <div class="testimonial-card">
-                        <div class="d-flex align-items-center mb-3">
-                            <img src="https://randomuser.me/api/portraits/men/1.jpg" alt="Avatar" class="testimonial-avatar">
-                            <div>
-                                <h5 class="mb-0">João Silva</h5>
-                                <small class="text-muted">Empresário</small>
-                            </div>
-                        </div>
-                        <p>"Aumentei minhas vendas em 300% usando o Zaponto. A melhor ferramenta que já usei!"</p>
+                    <div class="testimonial-card text-center">
+                        <img src="<?php echo $baseUrl; ?>/assets/images/testimonial-1.jpg" alt="Cliente 1" class="testimonial-avatar">
+                        <p class="testimonial-text">"Aumentei minhas vendas em 300% usando o ZapLocal. A ferramenta é simplesmente incrível!"</p>
+                        <div class="testimonial-author">João Silva</div>
+                        <div class="testimonial-position">Dono da Padaria Sabor & Cia</div>
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <div class="testimonial-card">
-                        <div class="d-flex align-items-center mb-3">
-                            <img src="https://randomuser.me/api/portraits/women/1.jpg" alt="Avatar" class="testimonial-avatar">
-                            <div>
-                                <h5 class="mb-0">Maria Santos</h5>
-                                <small class="text-muted">Lojista</small>
-                            </div>
-                        </div>
-                        <p>"O suporte é incrível e a plataforma é super fácil de usar. Recomendo!"</p>
+                    <div class="testimonial-card text-center">
+                        <img src="<?php echo $baseUrl; ?>/assets/images/testimonial-2.jpg" alt="Cliente 2" class="testimonial-avatar">
+                        <p class="testimonial-text">"O melhor investimento que fiz para meu negócio. Atendimento excepcional!"</p>
+                        <div class="testimonial-author">Maria Santos</div>
+                        <div class="testimonial-position">Proprietária do Salão Beauty</div>
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <div class="testimonial-card">
-                        <div class="d-flex align-items-center mb-3">
-                            <img src="https://randomuser.me/api/portraits/men/2.jpg" alt="Avatar" class="testimonial-avatar">
-                            <div>
-                                <h5 class="mb-0">Pedro Oliveira</h5>
-                                <small class="text-muted">Empreendedor</small>
-                            </div>
-                        </div>
-                        <p>"Melhor investimento que fiz para meu negócio. Resultados impressionantes!"</p>
+                    <div class="testimonial-card text-center">
+                        <img src="<?php echo $baseUrl; ?>/assets/images/testimonial-3.jpg" alt="Cliente 3" class="testimonial-avatar">
+                        <p class="testimonial-text">"Facilidade de uso e resultados impressionantes. Recomendo a todos!"</p>
+                        <div class="testimonial-author">Pedro Oliveira</div>
+                        <div class="testimonial-position">Gerente da Oficina AutoTech</div>
                     </div>
                 </div>
             </div>
@@ -238,8 +245,50 @@ $planos = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="../assets/js/notifications.js"></script>
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+const stripe = Stripe('<?php echo STRIPE_PUBLIC_KEY; ?>');
+
+document.querySelectorAll('.subscribe-button').forEach(button => {
+    button.addEventListener('click', async (e) => {
+        const button = e.currentTarget;
+        button.disabled = true;
+        
+        try {
+            const response = await fetch('../ajax/create-checkout-session.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    planId: button.dataset.planId,
+                    stripePriceId: button.dataset.stripePriceId
+                })
+            });
+
+            const session = await response.json();
+            
+            if (session.error) {
+                alert(session.error);
+                button.disabled = false;
+                return;
+            }
+
+            const result = await stripe.redirectToCheckout({
+                sessionId: session.id
+            });
+
+            if (result.error) {
+                alert(result.error.message);
+                button.disabled = false;
+            }
+        } catch (error) {
+            console.error('Erro:', error);
+            alert('Ocorreu um erro ao processar sua solicitação.');
+            button.disabled = false;
+        }
+    });
+});
+</script>
 
 <?php require_once '../includes/footer.php'; ?>
