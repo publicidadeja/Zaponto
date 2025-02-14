@@ -735,21 +735,28 @@ $(document).ready(function() {
     // Excluir notificação
     $('.excluir-notificacao').click(function() {
     const notificacaoId = $(this).data('id');
+    const row = $(this).closest('tr');
     
     if (confirm('Tem certeza que deseja excluir esta notificação?')) {
         $.ajax({
-            url: '../ajax/excluir_notificacao.php',
+            url: '../../ajax/excluir_notificacao.php',
             method: 'POST',
             data: { id: notificacaoId },
+            dataType: 'json',
             success: function(response) {
                 if (response.success) {
-                    location.reload(); // Reload the page to update the table
+                    row.fadeOut(400, function() {
+                        row.remove();
+                    });
+                    alert('Notificação excluída com sucesso!');
                 } else {
-                    alert('Erro ao excluir notificação');
+                    alert('Erro ao excluir notificação: ' + (response.error || 'Erro desconhecido'));
                 }
             },
-            error: function() {
-                alert('Erro ao processar a requisição');
+            error: function(xhr, status, error) {
+                console.error('Erro AJAX:', error);
+                console.error('Resposta:', xhr.responseText);
+                alert('Erro ao processar a requisição: ' + error);
             }
         });
     }

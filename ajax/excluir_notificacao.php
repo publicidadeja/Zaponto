@@ -3,7 +3,8 @@ session_start();
 require_once '../../includes/db.php';
 require_once '../../includes/admin-auth.php';
 
-header('Content-Type: application/json');
+// Set proper headers
+header('Content-Type: application/json; charset=utf-8');
 
 try {
     if (!isset($_POST['id']) || !is_numeric($_POST['id'])) {
@@ -17,14 +18,18 @@ try {
     $success = $stmt->execute([$id]);
 
     if ($success) {
-        echo json_encode(['success' => true]);
+        echo json_encode([
+            'success' => true,
+            'message' => 'Notificação excluída com sucesso'
+        ], JSON_UNESCAPED_UNICODE);
     } else {
         throw new Exception('Erro ao excluir notificação');
     }
 
 } catch (Exception $e) {
+    http_response_code(400);
     echo json_encode([
         'success' => false,
         'error' => $e->getMessage()
-    ]);
+    ], JSON_UNESCAPED_UNICODE);
 }
