@@ -22,7 +22,7 @@ class AssistantContextProcessor {
     public function __construct($pdo, $usuario_id) {
         $this->pdo = $pdo;
         $this->usuario_id = $usuario_id;
-        $this->api_key = 'sua_api_key_aqui';
+        $this->api_key = 'minhaapiaqui'; // Use a mesma key do claude_proxy.php
         $this->api_url = 'https://api.anthropic.com/v1/messages';
     }
 
@@ -84,25 +84,26 @@ class AssistantContextProcessor {
             $metricas = $this->getMetricasUsuario();
             $contexto = $this->construirContexto($dados_usuario, $metricas);
 
-            // Construir o prompt completo
+            // Usar caminho absoluto para o arquivo de prompt
+            $prompt_base_path = dirname(__FILE__) . '/prompts/assistant_base.txt';
+            $prompt_base = file_exists($prompt_base_path) ? file_get_contents($prompt_base_path) : '';
+
             $prompt_completo = "Contexto do Usuário:\n" . 
                              json_encode($contexto, JSON_PRETTY_PRINT) . 
                              "\n\nPrompt Base do Assistente:\n" . 
-                             file_get_contents('prompts/assistant_base.txt') . 
+                             $prompt_base . 
                              "\n\nPergunta do Usuário:\n" . 
                              $prompt_usuario;
 
-            // Fazer a chamada à API
             $client = new Client();
             $response = $client->post($this->api_url, [
                 'headers' => [
                     'Content-Type' => 'application/json',
                     'x-api-key' => $this->api_key,
-                    'Anthropic-Version' => '2023-06-01'
+                    'anthropic-version' => '2023-06-01'
                 ],
                 'json' => [
-                    'model' => 'claude-3.5-haiku-20240620',
-                    'max_tokens' => 1000,
+                    'model' => 'claude-3-haiku-20240307',
                     'messages' => [
                         [
                             'role' => 'user',
@@ -113,21 +114,41 @@ class AssistantContextProcessor {
             ]);
 
             $body = (string) $response->getBody();
-            return json_decode($body, true);
+            $data = json_decode($body, true);
+
+            // Tratamento específico da resposta do Claude
+            if (isset($data['content']) && is_array($data['content'])) {
+                $message = '';
+                foreach ($data['content'] as $content) {
+                    if ($content['type'] === 'text') {
+                        $message .= $content['text'];
+                    }
+                }
+                return ['success' => true, 'content' => $message];
+            }
+
+            throw new Exception('Formato de resposta inválido');
 
         } catch (Exception $e) {
             error_log('Erro no processamento do prompt: ' . $e->getMessage());
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'error' => 'Desculpe, ocorreu um erro ao processar sua mensagem.'];
         }
     }
 }
 
 // Uso do processador
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['prompt'])) {
-    $processor = new AssistantContextProcessor($pdo, $_SESSION['usuario_id']);
-    $resultado = $processor->processarPrompt($_POST['prompt']);
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $input = json_decode(file_get_contents('php://input'), true);
     
-    header('Content-Type: application/json');
-    echo json_encode($resultado);
+    if (isset($input['prompt'])) {
+        $processor = new AssistantContextProcessor($pdo, $_SESSION['usuario_id']);
+        $resultado = $processor->processarPrompt($input['prompt']);
+        
+        header('Content-Type: application/json');
+        echo json_encode($resultado);
+    } else {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Prompt não fornecido']);
+    }
 }
 ?>
