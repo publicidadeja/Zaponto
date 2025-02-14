@@ -1,13 +1,41 @@
 <div id="ai-assistant-widget" class="ai-assistant-closed">
-    <div class="ai-assistant-header">
-        <span>Assistente IA</span>
-        <button id="ai-assistant-toggle">×</button>
+    <!-- Botão circular flutuante -->
+    <div id="ai-assistant-floating-button">
+        <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png" alt="AI Assistant">
     </div>
-    <div class="ai-assistant-body">
-        <div id="ai-assistant-messages"></div>
-        <div class="ai-assistant-input">
-            <textarea id="ai-assistant-prompt" placeholder="Digite sua mensagem..."></textarea>
-            <button id="ai-assistant-send">Enviar</button>
+
+    <!-- Container principal do chat -->
+    <div class="ai-assistant-container">
+        <div class="ai-assistant-header">
+            <div class="header-content">
+                <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png" alt="AI Assistant" class="header-icon">
+                <div class="header-text">
+                    <span class="header-title">Assistente IA</span>
+                    <span class="header-status">Online</span>
+                </div>
+            </div>
+            <button id="ai-assistant-toggle" class="close-button">×</button>
+        </div>
+
+        <div class="ai-assistant-body">
+            <div id="ai-assistant-messages">
+                <!-- Mensagem de boas-vindas -->
+                <div class="message assistant-message">
+                    <div class="message-content">
+                        <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png" class="assistant-avatar">
+                        <div class="message-bubble">
+                            Olá! Sou o assistente virtual do ZapLocal. Como posso ajudar você hoje?
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ai-assistant-input">
+                <textarea id="ai-assistant-prompt" placeholder="Digite sua mensagem..." rows="1"></textarea>
+                <button id="ai-assistant-send">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -17,106 +45,328 @@
     position: fixed;
     bottom: 20px;
     right: 20px;
-    width: 350px;
-    height: 500px;
-    background: white;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    display: flex;
-    flex-direction: column;
     z-index: 1000;
+    font-family: 'Arial', sans-serif;
 }
 
-.ai-assistant-closed {
-    height: 50px !important;
+#ai-assistant-floating-button {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #0098fc;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s ease;
+}
+
+#ai-assistant-floating-button:hover {
+    transform: scale(1.1);
+}
+
+#ai-assistant-floating-button img {
+    width: 35px;
+    height: 35px;
+}
+
+.ai-assistant-container {
+    position: absolute;
+    bottom: 80px;
+    right: 0;
+    width: 380px;
+    height: 600px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 5px 25px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+}
+
+.ai-assistant-closed .ai-assistant-container {
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+}
+
+#ai-assistant-widget:not(.ai-assistant-closed) .ai-assistant-container {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: all;
 }
 
 .ai-assistant-header {
-    padding: 10px;
-    background: #2CC149;
+    padding: 20px;
+    background: linear-gradient(135deg, #0098fc, #003d64);
     color: white;
-    border-radius: 10px 10px 0 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.header-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-icon {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    background: white;
+    padding: 5px;
+}
+
+.header-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.header-title {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.header-status {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.close-button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.3s ease;
+}
+
+.close-button:hover {
+    background: rgba(255,255,255,0.1);
 }
 
 .ai-assistant-body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 10px;
-    overflow: hidden;
+    padding: 20px;
+    background: #f8f9fa;
 }
 
 #ai-assistant-messages {
     flex: 1;
     overflow-y: auto;
-    margin-bottom: 10px;
+    padding-right: 10px;
+}
+
+.message {
+    margin-bottom: 20px;
+}
+
+.message-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.assistant-avatar {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+}
+
+.message-bubble {
+    background: white;
+    padding: 12px 16px;
+    border-radius: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    max-width: 80%;
+}
+
+.user-message .message-content {
+    flex-direction: row-reverse;
+}
+
+.user-message .message-bubble {
+    background: #0098fc;
+    color: white;
 }
 
 .ai-assistant-input {
+    margin-top: 20px;
     display: flex;
     gap: 10px;
+    background: white;
+    padding: 15px;
+    border-radius: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
 
 #ai-assistant-prompt {
     flex: 1;
+    border: none;
+    outline: none;
     resize: none;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    height: 40px;
+    padding: 0;
+    font-size: 14px;
+    max-height: 100px;
 }
 
 #ai-assistant-send {
-    padding: 8px 15px;
-    background: #2CC149;
+    background: #0098fc;
     color: white;
     border: none;
-    border-radius: 5px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
+    transition: transform 0.2s ease;
 }
 
-.message {
-    margin-bottom: 10px;
-    padding: 8px;
-    border-radius: 5px;
+#ai-assistant-send:hover {
+    transform: scale(1.1);
 }
 
-.user-message {
-    background: #e9ecef;
-    margin-left: 20px;
-}
-
-.assistant-message {
-    background: #f8f9fa;
-    margin-right: 20px;
+@media (max-width: 480px) {
+    .ai-assistant-container {
+        width: 100vw;
+        height: 100vh;
+        bottom: 0;
+        right: 0;
+        border-radius: 0;
+    }
+    
+    #ai-assistant-floating-button {
+        width: 50px;
+        height: 50px;
+    }
+    
+    #ai-assistant-floating-button img {
+        width: 30px;
+        height: 30px;
+    }
 }
 </style>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+    // Elementos DOM
     const widget = document.getElementById('ai-assistant-widget');
-    const toggleBtn = document.getElementById('ai-assistant-toggle');
+    const floatingButton = document.getElementById('ai-assistant-floating-button');
     const messagesContainer = document.getElementById('ai-assistant-messages');
     const promptInput = document.getElementById('ai-assistant-prompt');
     const sendBtn = document.getElementById('ai-assistant-send');
+    const toggleBtn = document.getElementById('ai-assistant-toggle');
+    
+    // Estado inicial
+    let isWidgetOpen = false;
+    let isProcessing = false;
 
-    // Toggle chat
-    toggleBtn.addEventListener('click', () => {
-        widget.classList.toggle('ai-assistant-closed');
-        toggleBtn.textContent = widget.classList.contains('ai-assistant-closed') ? '□' : '×';
+    // Função para auto-ajustar altura do textarea
+    function autoResizeTextarea(element) {
+        element.style.height = 'auto';
+        element.style.height = (element.scrollHeight) + 'px';
+    }
+
+    // Inicializar textarea auto-resize
+    promptInput.addEventListener('input', function() {
+        autoResizeTextarea(this);
     });
 
-    // Send message
+    // Toggle do widget
+    function toggleWidget() {
+        isWidgetOpen = !isWidgetOpen;
+        widget.classList.toggle('ai-assistant-closed', !isWidgetOpen);
+        
+        if (isWidgetOpen) {
+            floatingButton.style.display = 'none';
+            promptInput.focus();
+            scrollToBottom();
+        } else {
+            floatingButton.style.display = 'flex';
+        }
+    }
+
+    // Event listeners para toggle
+    floatingButton.addEventListener('click', toggleWidget);
+    toggleBtn.addEventListener('click', toggleWidget);
+
+    // Função para rolar para última mensagem
+    function scrollToBottom() {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // Adicionar mensagem ao chat
+    function addMessage(type, content, isLoading = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', `${type}-message`);
+        
+        const messageContent = document.createElement('div');
+        messageContent.classList.add('message-content');
+
+        if (type === 'assistant') {
+            const avatar = document.createElement('img');
+            avatar.src = 'https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png';
+            avatar.classList.add('assistant-avatar');
+            messageContent.appendChild(avatar);
+        }
+
+        const messageBubble = document.createElement('div');
+        messageBubble.classList.add('message-bubble');
+
+        if (isLoading) {
+            messageBubble.innerHTML = `
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            `;
+        } else {
+            messageBubble.textContent = content;
+        }
+
+        messageContent.appendChild(messageBubble);
+        messageDiv.appendChild(messageContent);
+        messagesContainer.appendChild(messageDiv);
+        scrollToBottom();
+
+        return messageDiv;
+    }
+
+    // Enviar mensagem
     async function sendMessage() {
+        if (isProcessing) return;
+
         const prompt = promptInput.value.trim();
         if (!prompt) return;
 
-        // Add user message to chat
-        addMessage('user', prompt);
+        isProcessing = true;
         promptInput.value = '';
+        autoResizeTextarea(promptInput);
+
+        // Adiciona mensagem do usuário
+        addMessage('user', prompt);
+
+        // Adiciona indicador de digitação
+        const loadingMessage = addMessage('assistant', '', true);
 
         try {
             const response = await fetch('/pages/claude_proxy.php', {
@@ -129,6 +379,9 @@
 
             const data = await response.json();
             
+            // Remove o indicador de digitação
+            loadingMessage.remove();
+
             if (data.success) {
                 addMessage('assistant', data.content);
             } else {
@@ -136,23 +389,51 @@
             }
         } catch (error) {
             console.error('Erro:', error);
+            loadingMessage.remove();
             addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem.');
+        } finally {
+            isProcessing = false;
         }
     }
 
-    function addMessage(type, content) {
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', `${type}-message`);
-        messageDiv.textContent = content;
-        messagesContainer.appendChild(messageDiv);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-
+    // Event listeners para envio
     sendBtn.addEventListener('click', sendMessage);
     promptInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
+        }
+    });
+
+    // Mensagem inicial de boas-vindas
+    setTimeout(() => {
+        addMessage('assistant', 'Olá! Sou o assistente virtual do ZapLocal. Como posso ajudar você hoje?');
+    }, 500);
+
+    // Detectar clique fora do widget para fechar
+    document.addEventListener('click', (e) => {
+        if (isWidgetOpen && !widget.contains(e.target) && !floatingButton.contains(e.target)) {
+            toggleWidget();
+        }
+    });
+
+    // Adicionar suporte a drag and drop para arquivos
+    widget.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        widget.classList.add('drag-over');
+    });
+
+    widget.addEventListener('dragleave', () => {
+        widget.classList.remove('drag-over');
+    });
+
+    widget.addEventListener('drop', (e) => {
+        e.preventDefault();
+        widget.classList.remove('drag-over');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            // Implementar lógica de upload de arquivo aqui
+            addMessage('assistant', 'Desculpe, o upload de arquivos ainda não está disponível.');
         }
     });
 });

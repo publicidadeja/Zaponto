@@ -479,6 +479,9 @@ if (isset($_SESSION['usuario_id'], $pdo) && !in_array($currentPage, PUBLIC_PAGES
 
 <?php include 'assistant-chat.php'; ?>
 <script src="<?php echo $baseUrl; ?>assets/js/ai-assistant.js"></script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
 </body>
 </body>
 </html>
