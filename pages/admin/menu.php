@@ -27,12 +27,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <i class="fas fa-box"></i> Planos
                 </a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link <?php echo $current_page == 'leads.php' ? 'active' : ''; ?>" 
-                   href="leads.php">
-                    <i class="fas fa-address-book"></i> Leads
-                </a>
-            </li>
+            
             <li class="nav-item">
                 <a class="nav-link <?php echo $current_page == 'relatorios.php' ? 'active' : ''; ?>" 
                    href="relatorios.php">

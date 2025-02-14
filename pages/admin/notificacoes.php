@@ -165,10 +165,8 @@ try {
         ROUND((COUNT(CASE WHEN n.lida = 1 THEN 1 END) * 100.0 / COUNT(*)), 2) as taxa_leitura,
         MAX(n.data_leitura) as ultima_leitura
     FROM notificacoes n
-    WHERE 1=1
-    " . ($filtroTipo ? " AND n.tipo = :tipo" : "") . "
-    " . ($dataInicio ? " AND n.data_criacao >= :data_inicio" : "") . "
-    " . ($dataFim ? " AND n.data_criacao <= :data_fim" : "") . "
+    WHERE n.excluida = 0
+    " . ($whereConditions ? " AND " . implode(" AND ", $whereConditions) : "") . "
     GROUP BY n.id, n.tipo, n.titulo, n.mensagem, n.data_criacao
     ORDER BY n.data_criacao DESC
 ";
@@ -393,21 +391,6 @@ try {
         <i class="fas fa-file-pdf me-2"></i>Exportar PDF
     </button>
 </div>
-
-<div class="modal-body">
-    <div class="mb-3">
-        <label class="form-label">Agendar Envio</label>
-        <input type="datetime-local" name="data_agendamento" class="form-control">
-    </div>
-    
-    <div class="mb-3">
-        <label class="form-label">Segmentação de Usuários</label>
-        <select name="segmentacao" class="form-select">
-            <option value="todos">Todos os Usuários</option>
-            <option value="plano_ativo">Apenas Planos Ativos</option>
-            <option value="plano_vencendo">Planos Próximos ao Vencimento</option>
-        </select>
-    </div>
     
     <div class="mb-3">
         <label class="form-label">Preview da Notificação</label>
@@ -416,50 +399,55 @@ try {
 </div>
             
             <!-- Notifications Table -->
-            <div class="card">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table" id="notificacoesTable">
-                            <thead>
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Tipo</th>
-                                    <th>Título</th>
-                                    <th>Mensagem</th>
-                                    <th>Usuários</th>
-                                    <th>Lidas</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($notificacoes as $notif): ?>
-                                    <tr>
-                                        <td><?php echo date('d/m/Y H:i', strtotime($notif['data_criacao'])); ?></td>
-                                        <td>
-                                            <span class="notification-type type-<?php echo $notif['tipo']; ?>">
-                                                <?php echo ucfirst($notif['tipo']); ?>
-                                            </span>
-                                        </td>
-                                        <td><?php echo htmlspecialchars($notif['titulo']); ?></td>
-                                        <td><?php echo htmlspecialchars($notif['mensagem']); ?></td>
-                                        <td>
-                                            <span class="badge bg-primary">
-                                                <?php echo $notif['total_usuarios']; ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-success">
-                                                <?php echo $notif['total_lidas']; ?>
-                                            </span>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table" id="notificacoesTable">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Tipo</th>
+                        <th>Título</th>
+                        <th>Mensagem</th>
+                        <th>Usuários</th>
+                        <th>Lidas</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($notificacoes as $notif): ?>
+                        <tr>
+                            <td><?php echo date('d/m/Y H:i', strtotime($notif['data_criacao'])); ?></td>
+                            <td>
+                                <span class="notification-type type-<?php echo $notif['tipo']; ?>">
+                                    <?php echo ucfirst($notif['tipo']); ?>
+                                </span>
+                            </td>
+                            <td><?php echo htmlspecialchars($notif['titulo']); ?></td>
+                            <td><?php echo htmlspecialchars($notif['mensagem']); ?></td>
+                            <td>
+                                <span class="badge bg-primary">
+                                    <?php echo $notif['total_usuarios']; ?>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-success">
+                                    <?php echo $notif['total_lidas']; ?>
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-danger excluir-notificacao" 
+                                        data-id="<?php echo $notif['id']; ?>">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     </div>
+</div>
 
     
     <!-- Modal Nova Notificação -->
@@ -474,7 +462,6 @@ try {
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <!-- Campos básicos -->
                             <div class="mb-3">
                                 <label class="form-label">Tipo da Notificação</label>
                                 <select name="tipo" class="form-select" required>
@@ -497,9 +484,8 @@ try {
                         </div>
                         
                         <div class="col-md-6">
-                            <!-- Opções de agendamento -->
                             <div class="mb-3">
-                                <label class="form-label">Tipo de Envio</label>
+                                <label class="form-label">Agendamento</label>
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="radio" name="tipo_envio" value="imediato" id="envioImediato" checked>
                                     <label class="form-check-label" for="envioImediato">
@@ -513,11 +499,10 @@ try {
                                     </label>
                                 </div>
                                 <div id="campoDataAgendamento" class="mt-2 d-none">
-                                    <input type="datetime-local" name="data_agendamento" class="form-control">
+                                    <input type="datetime-local" name="data_agendamento" class="form-control flatpickr">
                                 </div>
                             </div>
                             
-                            <!-- Segmentação -->
                             <div class="mb-3">
                                 <label class="form-label">Segmentação de Usuários</label>
                                 <select name="segmentacao" class="form-select">
@@ -525,6 +510,11 @@ try {
                                     <option value="plano_ativo">Apenas Planos Ativos</option>
                                     <option value="plano_vencendo">Planos Próximos ao Vencimento</option>
                                 </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Preview da Notificação</label>
+                                <div class="preview-box p-3 border rounded bg-light"></div>
                             </div>
                         </div>
                     </div>
@@ -720,5 +710,71 @@ function validarFiltros($filtros) {
     return $filtrosValidos;
 }
 </script>
+
+<script>
+$(document).ready(function() {
+    // Inicializar Flatpickr para o calendário
+    flatpickr(".flatpickr", {
+        enableTime: true,
+        dateFormat: "Y-m-d H:i",
+        minDate: "today",
+        time_24hr: true
+    });
+
+    // Controle de exibição do campo de agendamento
+    $('input[name="tipo_envio"]').change(function() {
+        if ($(this).val() === 'agendado') {
+            $('#campoDataAgendamento').removeClass('d-none');
+            $('input[name="data_agendamento"]').prop('required', true);
+        } else {
+            $('#campoDataAgendamento').addClass('d-none');
+            $('input[name="data_agendamento"]').prop('required', false);
+        }
+    });
+
+    // Excluir notificação
+    $('.excluir-notificacao').click(function() {
+    const notificacaoId = $(this).data('id');
+    
+    if (confirm('Tem certeza que deseja excluir esta notificação?')) {
+        $.ajax({
+            url: '../ajax/excluir_notificacao.php',
+            method: 'POST',
+            data: { id: notificacaoId },
+            success: function(response) {
+                if (response.success) {
+                    location.reload(); // Reload the page to update the table
+                } else {
+                    alert('Erro ao excluir notificação');
+                }
+            },
+            error: function() {
+                alert('Erro ao processar a requisição');
+            }
+        });
+    }
+});
+
+    // Preview em tempo real
+    $('input[name="titulo"], textarea[name="mensagem"]').on('input', function() {
+        const titulo = $('input[name="titulo"]').val();
+        const mensagem = $('textarea[name="mensagem"]').val();
+        $('.preview-box').html(`
+            <h5>${titulo || 'Título da notificação'}</h5>
+            <p>${mensagem || 'Conteúdo da mensagem'}</p>
+        `);
+    });
+});
+</script>
+
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.dataTables.min.css">
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </body>
 </html>
