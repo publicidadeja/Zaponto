@@ -24,7 +24,7 @@
                     <div class="message-content">
                         <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png" class="assistant-avatar">
                         <div class="message-bubble">
-                            Olá! Sou o assistente virtual do ZapLocal. Como posso ajudar você hoje?
+                            Olá! Sou o assistente virtual do Zaponto. Como posso ajudar você hoje?
                         </div>
                     </div>
                 </div>
@@ -404,11 +404,6 @@
             sendMessage();
         }
     });
-
-    // Mensagem inicial de boas-vindas
-    setTimeout(() => {
-        addMessage('assistant', 'Olá! Sou o assistente virtual do ZapLocal. Como posso ajudar você hoje?');
-    }, 500);
 
     // Detectar clique fora do widget para fechar
     document.addEventListener('click', (e) => {
