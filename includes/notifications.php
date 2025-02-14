@@ -32,6 +32,7 @@ function agendarNotificacao($pdo, $titulo, $mensagem, $tipo, $data_agendamento, 
     return $stmt->execute([$titulo, $mensagem, $tipo, $data_agendamento, $segmentacao]);
 }
 
+
 function verificarNotificacoes($pdo, $usuario_id) {
     // Verificar plano
     $stmt = $pdo->prepare("SELECT * FROM assinaturas WHERE usuario_id = ? AND status = 'ativo' ORDER BY data_fim DESC LIMIT 1");

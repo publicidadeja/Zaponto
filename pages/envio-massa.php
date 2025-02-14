@@ -1,82 +1,126 @@
 <?php
+
+/**
+ *  ZapLocal - Envio em Massa (envio-massa.php) - Parte 1
+ *
+ *  Este arquivo permite aos usuários enviar mensagens em massa para leads via WhatsApp,
+ *  integrando-se com uma API externa (Claude) para sugestões de mensagens.
+ *
+ *  Seções (Parte 1):
+ *  - Inicialização e Inclusões
+ *  - Funções Auxiliares
+ *  - Recuperação de Dados
+ *  - Processamento do Formulário (Parte 1: Preparação)
+ *  - HTML (Início)
+ */
+
+//--------------------------------------------------
+// Inicialização e Inclusões
+//--------------------------------------------------
+
 session_start();
 
-// Verifica se o usuário está logado
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php');
     exit;
 }
 
-// Inclusões e configurações
-include '../includes/db.php';
-include '../includes/functions.php';
+require_once '../includes/db.php';
+require_once '../includes/functions.php';
 
+//--------------------------------------------------
+// Funções Auxiliares
+//--------------------------------------------------
 
-// Funções auxiliares
-function buscarDispositivosConectados($pdo, $usuario_id) {
-    $stmt = $pdo->prepare("SELECT d.*, u.mensagem_base FROM dispositivos d 
-                           JOIN usuarios u ON u.id = d.usuario_id 
-                           WHERE d.usuario_id = ? AND d.status = 'CONNECTED' 
+/**
+ * Busca dispositivos conectados do usuário.
+ */
+function buscarDispositivosConectados(PDO $pdo, int $usuario_id): array
+{
+    $stmt = $pdo->prepare("SELECT d.*, u.mensagem_base FROM dispositivos d
+                           JOIN usuarios u ON u.id = d.usuario_id
+                           WHERE d.usuario_id = ? AND d.status = 'CONNECTED'
                            ORDER BY d.created_at DESC");
     $stmt->execute([$usuario_id]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function buscarMensagemBaseUsuario($pdo, $usuario_id) {
+/**
+ * Busca a mensagem base do usuário.
+ */
+function buscarMensagemBaseUsuario(PDO $pdo, int $usuario_id): string
+{
     $stmt = $pdo->prepare("SELECT mensagem_base FROM usuarios WHERE id = ?");
     $stmt->execute([$usuario_id]);
-    $usuario = $stmt->fetch();
+    $usuario = $stmt->fetch(PDO::FETCH_ASSOC);  // Use FETCH_ASSOC
     return $usuario['mensagem_base'] ?? '';
 }
 
-
-function buscarLeadsUsuario($pdo, $usuario_id) {
-    $query = "SELECT l.*, d.nome as dispositivo_nome 
-              FROM leads_enviados l 
-              LEFT JOIN dispositivos d ON l.dispositivo_id = d.device_id 
-              WHERE l.usuario_id = :usuario_id";
-    $stmt = $pdo->prepare($query);
-    $stmt->execute(['usuario_id' => $usuario_id]);
+/**
+ * Busca leads do usuário.
+ */
+function buscarLeadsUsuario(PDO $pdo, int $usuario_id): array
+{
+    $stmt = $pdo->prepare("SELECT l.*, d.nome as dispositivo_nome
+              FROM leads_enviados l
+              LEFT JOIN dispositivos d ON l.dispositivo_id = d.device_id
+              WHERE l.usuario_id = ?");
+    $stmt->execute([$usuario_id]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function processarUploadArquivo() {
-    $arquivo_path = '';
+/**
+ * Processa o upload de arquivos.
+ *
+ * @return string Caminho do arquivo ou string vazia se não houver upload.
+ * @throws Exception Se houver erro no upload.
+ */
+function processarUploadArquivo(): string
+{
+    $filePath = '';
     if (isset($_FILES['arquivo']) && $_FILES['arquivo']['error'] === UPLOAD_ERR_OK) {
-        $upload_dir = '../uploads/';
-        $nome_arquivo = uniqid('file_') . '_' . time() . '_' . $_FILES['arquivo']['name'];
-        $arquivo_path = $upload_dir . $nome_arquivo;
+        $uploadDir = '../uploads/';
+        $fileName = uniqid('file_') . '_' . time() . '_' . $_FILES['arquivo']['name'];
+        $filePath = $uploadDir . $fileName;
 
-        if (!file_exists($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
+        if (!file_exists($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
         }
 
-        if (!move_uploaded_file($_FILES['arquivo']['tmp_name'], $arquivo_path)) {
+        if (!move_uploaded_file($_FILES['arquivo']['tmp_name'], $filePath)) {
             throw new Exception("Erro ao fazer upload do arquivo.");
         }
     }
-    return $arquivo_path;
+    return $filePath;
 }
 
-function validarDadosEnvio($dispositivo_id, $mensagem, $selected_leads) {
-    $erros = [];
+/**
+ * Valida os dados do formulário de envio.
+ */
+function validarDadosEnvio(?string $dispositivo_id, ?string $mensagem, ?array $selected_leads): array
+{
+    $errors = [];
     if (empty($dispositivo_id)) {
-        $erros[] = "Selecione um dispositivo para envio.";
+        $errors[] = "Selecione um dispositivo.";
     }
     if (empty($mensagem)) {
-        $erros[] = "A mensagem não pode estar vazia.";
+        $errors[] = "A mensagem não pode estar vazia.";
     }
     if (empty($selected_leads)) {
-        $erros[] = "Selecione pelo menos um lead para envio.";
+        $errors[] = "Selecione pelo menos um lead.";
     }
-    return $erros;
+    return $errors;
 }
 
-function criarFilaMensagens($pdo, $usuario_id, $dispositivo_id, $mensagem, $arquivo_path, $selected_leads) {
+/**
+ * Cria a fila de mensagens no banco de dados.
+ */
+function criarFilaMensagens(PDO $pdo, int $usuario_id, string $dispositivo_id, string $mensagem, string $arquivo_path, array $selected_leads): void
+{
     foreach ($selected_leads as $lead_id) {
         $stmt = $pdo->prepare("SELECT numero, nome FROM leads_enviados WHERE id = ? AND usuario_id = ?");
         $stmt->execute([$lead_id, $usuario_id]);
-        $lead = $stmt->fetch();
+        $lead = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($lead) {
             $mensagem_personalizada = str_replace(
@@ -85,8 +129,8 @@ function criarFilaMensagens($pdo, $usuario_id, $dispositivo_id, $mensagem, $arqu
                 $mensagem
             );
 
-            $stmt = $pdo->prepare("INSERT INTO fila_mensagens 
-                (usuario_id, dispositivo_id, numero, mensagem, arquivo_path, status, created_at) 
+            $stmt = $pdo->prepare("INSERT INTO fila_mensagens
+                (usuario_id, dispositivo_id, numero, mensagem, arquivo_path, status, created_at)
                 VALUES (?, ?, ?, ?, ?, 'PENDENTE', NOW())");
             $stmt->execute([
                 $usuario_id,
@@ -99,8 +143,14 @@ function criarFilaMensagens($pdo, $usuario_id, $dispositivo_id, $mensagem, $arqu
     }
 }
 
-function iniciarProcessamentoAssincrono($usuario_id, $dispositivo_id) {
-    $ch = curl_init('http://localhost:3000/process-queue');
+/**
+ * Inicia o processamento assíncrono da fila (via cURL).
+ *
+ * @throws Exception Se houver erro na requisição cURL.
+ */
+function iniciarProcessamentoAssincrono(int $usuario_id, string $dispositivo_id): void
+{
+    $ch = curl_init('http://localhost:3000/process-queue'); //  URL correta
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => json_encode([
@@ -109,54 +159,64 @@ function iniciarProcessamentoAssincrono($usuario_id, $dispositivo_id) {
         ]),
         CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 1,
-        CURLOPT_NOSIGNAL => 1
+        CURLOPT_TIMEOUT => 1,        // Timeout curto (operação assíncrona)
+        CURLOPT_NOSIGNAL => 1         // Evita timeouts longos do sinal
     ]);
 
     $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($http_code != 200) {
+    if ($httpCode != 200) {
         throw new Exception('Erro ao iniciar o processamento da fila');
     }
 }
 
-// Busca de dados
+//--------------------------------------------------
+// Recuperação de Dados
+//--------------------------------------------------
+
 $dispositivos = buscarDispositivosConectados($pdo, $_SESSION['usuario_id']);
 $mensagem_base = buscarMensagemBaseUsuario($pdo, $_SESSION['usuario_id']);
 $leads = buscarLeadsUsuario($pdo, $_SESSION['usuario_id']);
+$sendErrors = []; // Inicializa a variável
 
-// Processamento do formulário
+//--------------------------------------------------
+// Processamento do Formulário (Parte 1: Preparação)
+//--------------------------------------------------
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $erros_envio = [];
-    $arquivo_path = '';
+    $filePath = '';
 
     try {
-        $arquivo_path = processarUploadArquivo();
-        $dispositivo_id = $_POST['dispositivo_id'] ?? '';
-        $mensagem = $_POST['mensagem'] ?? '';
+        $filePath = processarUploadArquivo();
+        $dispositivo_id = $_POST['dispositivo_id'] ?? null; // Use null coalescing
+        $mensagem = $_POST['mensagem'] ?? null;
         $selected_leads = $_POST['selected_leads'] ?? [];
-    
-        $erros_envio = validarDadosEnvio($dispositivo_id, $mensagem, $selected_leads);
-    
-        if (empty($erros_envio)) {
-            criarFilaMensagens($pdo, $_SESSION['usuario_id'], $dispositivo_id, $mensagem, $arquivo_path, $selected_leads);
+
+        $sendErrors = validarDadosEnvio($dispositivo_id, $mensagem, $selected_leads);
+
+        if (empty($sendErrors)) {
+            criarFilaMensagens($pdo, $_SESSION['usuario_id'], $dispositivo_id, $mensagem, $filePath, $selected_leads);
             iniciarProcessamentoAssincrono($_SESSION['usuario_id'], $dispositivo_id);
-    
-            $_SESSION['mensagem'] = "Envio iniciado com sucesso! As mensagens serão enviadas em segundo plano.";
-            // Remove the redirect and exit
+
+            $_SESSION['mensagem'] = "Envio iniciado! As mensagens serão enviadas em segundo plano.";
+            // Removido o redirecionamento e exit
         }
     } catch (Exception $e) {
         error_log("Erro ao criar fila de envio: " . $e->getMessage());
-        $_SESSION['mensagem'] = "Envio iniciado com sucesso! As mensagens serão enviadas em segundo plano.";
-        // Don't add error message to $erros_envio
+        $_SESSION['mensagem'] = "Envio iniciado! As mensagens serão enviadas em segundo plano.";
+        // Não adiciona a mensagem de erro a $sendErrors
     }
 
-    if (!empty($erros_envio)) {
-        $_SESSION['erros_envio'] = $erros_envio;
+    if (!empty($sendErrors)) {
+        $_SESSION['erros_envio'] = $sendErrors;
     }
 }
+
+//--------------------------------------------------
+// HTML (Início)
+//--------------------------------------------------
 ?>
 
 <!DOCTYPE html>
@@ -479,15 +539,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <!-- Exibição de mensagens e erros -->
                     <?php if (isset($_SESSION['mensagem'])): ?>
                         <div class="alert alert-success">
-                            <?php echo $_SESSION['mensagem']; unset($_SESSION['mensagem']); ?>
+                            <?= $_SESSION['mensagem']; unset($_SESSION['mensagem']); ?>
                         </div>
                     <?php endif; ?>
 
-                    <?php if (!empty($erros_envio)): ?>
+                    <?php if (!empty($sendErrors)): ?>
                         <div class="alert alert-danger">
                             <ul class="mb-0">
-                                <?php foreach ($erros_envio as $erro): ?>
-                                    <li><?php echo $erro; ?></li>
+                                <?php foreach ($sendErrors as $error): ?>
+                                    <li><?= $error ?></li>
                                 <?php endforeach; ?>
                             </ul>
                         </div>
@@ -501,8 +561,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <select name="dispositivo_id" class="form-select" required>
                                 <option value="">Selecione um dispositivo...</option>
                                 <?php foreach ($dispositivos as $dispositivo): ?>
-                                    <option value="<?php echo htmlspecialchars($dispositivo['device_id']); ?>">
-                                        <?php echo htmlspecialchars($dispositivo['nome']); ?>
+                                    <option value="<?= htmlspecialchars($dispositivo['device_id']) ?>">
+                                        <?= htmlspecialchars($dispositivo['nome']) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -560,749 +620,766 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </div>
 
                         <!-- Botão de Envio -->
-                        <button type="submit" class="btn btn-primary">
+                        <button type="button" class="btn btn-primary" id="btnIniciarEnvio">
                             <i class="fas fa-paper-plane me-2"></i>Iniciar Envio
                         </button>
                     </form>
 
                     <!-- Barra de Progresso -->
-<div id="progressContainer" class="mt-4 d-none">
-    <h5>Progresso do Envio</h5>
-    <div class="progress">
-        <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%">
-            <span id="progressText">0%</span>
-        </div>
-    </div>
-    <p class="mt-2 text-center">
-        Enviando mensagem <span id="currentMessage">0</span> de <span id="totalMessages">0</span>
-    </p>
-</div>
+                    <div id="progressContainer" class="mt-4 d-none">
+                        <h5>Progresso do Envio</h5>
+                        <div class="progress">
+                            <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%">
+                                <span id="progressText">0%</span>
+                            </div>
+                        </div>
+                        <p class="mt-2 text-center">
+                            Enviando mensagem <span id="currentMessage">0</span> de <span id="totalMessages">0</span>
+                        </p>
+                    </div>
 
-    <!-- Modal de Seleção de Leads -->
-    <div class="modal fade" id="leadSelectionModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Selecionar Leads</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <!-- Opções de Seleção -->
-                    <div class="lead-selection-options">
-                        <div class="form-check mb-2">
-                            <input type="radio" class="form-check-input" name="selectionType" id="selectAll" value="all">
-                            <label class="form-check-label" for="selectAll">Selecionar Todos os Leads</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input type="radio" class="form-check-input" name="selectionType" id="selectByDate" value="date">
-                            <label class="form-check-label" for="selectByDate">Selecionar por Data</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input type="radio" class="form-check-input" name="selectionType" id="selectManual" value="manual" checked>
-                            <label class="form-check-label" for="selectManual">Seleção Manual</label>
-                        </div>
-
-                        <!-- Seleção por Data (oculta por padrão) -->
-                        <div id="dateRangeSection" class="mt-3 d-none">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <label class="form-label">Data Início</label>
-                                    <input type="date" class="form-control" name="data_inicio">
+                    <!-- Modal de Seleção de Leads -->
+                    <div class="modal fade" id="leadSelectionModal" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Selecionar Leads</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Data Fim</label>
-                                    <input type="date" class="form-control" name="data_fim">
+                                <div class="modal-body">
+                                    <!-- Opções de Seleção -->
+                                    <div class="lead-selection-options">
+                                        <div class="form-check mb-2">
+                                            <input type="radio" class="form-check-input" name="selectionType" id="selectAll" value="all">
+                                            <label class="form-check-label" for="selectAll">Selecionar Todos os Leads</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input type="radio" class="form-check-input" name="selectionType" id="selectByDate" value="date">
+                                            <label class="form-check-label" for="selectByDate">Selecionar por Data</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input type="radio" class="form-check-input" name="selectionType" id="selectManual" value="manual" checked>
+                                            <label class="form-check-label" for="selectManual">Seleção Manual</label>
+                                        </div>
+
+                                        <!-- Seleção por Data (oculta por padrão) -->
+                                        <div id="dateRangeSection" class="mt-3 d-none">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Data Início</label>
+                                                    <input type="date" class="form-control" name="data_inicio">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Data Fim</label>
+                                                    <input type="date" class="form-control" name="data_fim">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Tabela de Leads -->
+                                    <table id="leadsTable" class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th><input type="checkbox" id="selectAllCheckbox"></th>
+                                                <th>Nome</th>
+                                                <th>Número</th>
+                                                <th>Status</th>
+                                                <th>Data de Envio</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($leads as $lead): ?>
+                                            <tr>
+                                                <td>
+                                                    <input type="checkbox" name="selected_leads[]" value="<?= $lead['id'] ?>" class="lead-checkbox">
+                                                </td>
+                                                <td><?= htmlspecialchars($lead['nome']) ?></td>
+                                                <td><?= htmlspecialchars($lead['numero']) ?></td>
+                                                <td><?= htmlspecialchars($lead['status']) ?></td>
+                                                <td><?= formatarData($lead['data_envio']) ?></td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                                    <button type="button" class="btn btn-primary" id="confirmLeadSelection">Confirmar Seleção</button>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div> <!-- Fim .form-container -->
+            </div> <!-- Fim .col-md-12 -->
+        </div> <!-- Fim .row -->
+    </div> <!-- Fim .container -->
 
-                    <!-- Tabela de Leads -->
-                    <table id="leadsTable" class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th><input type="checkbox" id="selectAllCheckbox"></th>
-                                <th>Nome</th>
-                                <th>Número</th>
-                                <th>Status</th>
-                                <th>Data de Envio</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($leads as $lead): ?>
-                            <tr>
-                                <td>
-                                    <input type="checkbox" name="selected_leads[]" value="<?php echo $lead['id']; ?>" class="lead-checkbox">
-                                </td>
-                                <td><?php echo htmlspecialchars($lead['nome']); ?></td>
-                                <td><?php echo htmlspecialchars($lead['numero']); ?></td>
-                                <td><?php echo htmlspecialchars($lead['status']); ?></td>
-                                <td><?php echo formatarData($lead['data_envio']); ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+    <!-- Modal de Confirmação de Envio (Estilizado) -->
+    <div class="modal fade" id="confirmacaoEnvioModal" tabindex="-1" aria-labelledby="confirmacaoEnvioModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmacaoEnvioModalLabel"><i class="fas fa-exclamation-triangle text-warning me-2"></i>Confirmação de Envio</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Você está prestes a enviar mensagens para <span id="numLeadsConfirmacao"></span> leads.</p>
+                    <p><strong>Importante:</strong></p>
+                    <ul>
+                        <li>Certifique-se de que os leads selecionados deram consentimento para receber mensagens.</li>
+                        <li>O envio em massa pode levar algum tempo, dependendo do número de leads e da velocidade da sua conexão.</li>
+                        <li>Não feche esta janela ou interrompa o processo de envio até que ele seja concluído.</li>
+                    </ul>
+                    <p>Deseja prosseguir com o envio?</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                    <button type="button" class="btn btn-primary" id="confirmLeadSelection">Confirmar Seleção</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="confirmarEnvioBtn">
+                        <i class="fas fa-check me-2"></i>Confirmar Envio
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <?php include '../includes/footer.php'; ?>
+<?php include '../includes/footer.php'; ?>
 
-    <!-- Scripts -->
-     <!-- Adicione os links para os arquivos JavaScript do jQuery, Bootstrap, DataTables e seus scripts personalizados aqui -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<!-- Scripts (Parte 1) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
 
-    <script>
-    // Script para inicializar o DataTable e manipular eventos relacionados à seleção de leads
-    $(document).ready(function() {
-        // Inicializa o DataTable
-        const leadsTable = $('#leadsTable').DataTable({
-    scrollY: '50vh',
-    scrollCollapse: true,
-    paging: true,
-    language: { // Configuração direta, em vez de language.url
-        "sEmptyTable":   "Nenhum registro encontrado",
-        "sInfo":         "Mostrando de _START_ até _END_ de _TOTAL_ registros",
-        "sInfoEmpty":    "Mostrando 0 até 0 de 0 registros",
-        "sInfoFiltered": "(Filtrados de _MAX_ registros)",
-        "sInfoPostFix":  "",
-        "sInfoThousands":".",
-        "sLengthMenu":   "_MENU_ resultados por página",
-        "sLoadingRecords": "Carregando...",
-        "sProcessing":   "Processando...",
-        "sZeroRecords":  "Nenhum registro encontrado",
-        "sSearch":       "Pesquisar",
-        "oPaginate": {
-            "sNext":     "Próximo",
-            "sPrevious": "Anterior",
-            "sFirst":    "Primeiro",
-            "sLast":     "Último"
-        },
-        "oAria": {
-            "sSortAscending":  ": Ordenar colunas de forma ascendente",
-            "sSortDescending": ": Ordenar colunas de forma descendente"
+<script>
+// Script para inicializar o DataTable e manipular eventos relacionados à seleção de leads
+$(document).ready(function() {
+    // Inicializa o DataTable
+    const leadsTable = $('#leadsTable').DataTable({
+        scrollY: '50vh',
+        scrollCollapse: true,
+        paging: true,
+        language: { // Configuração direta, em vez de language.url
+            "sEmptyTable":   "Nenhum registro encontrado",
+            "sInfo":         "Mostrando de _START_ até _END_ de _TOTAL_ registros",
+            "sInfoEmpty":    "Mostrando 0 até 0 de 0 registros",
+            "sInfoFiltered": "(Filtrados de _MAX_ registros)",
+            "sInfoPostFix":  "",
+            "sInfoThousands":".",
+            "sLengthMenu":   "_MENU_ resultados por página",
+            "sLoadingRecords": "Carregando...",
+            "sProcessing":   "Processando...",
+            "sZeroRecords":  "Nenhum registro encontrado",
+            "sSearch":       "Pesquisar",
+            "oPaginate": {
+                "sNext":     "Próximo",
+                "sPrevious": "Anterior",
+                "sFirst":    "Primeiro",
+                "sLast":     "Último"
+            },
+            "oAria": {
+                "sSortAscending":  ": Ordenar colunas de forma ascendente",
+                "sSortDescending": ": Ordenar colunas de forma descendente"
+            }
         }
+    });
+
+    // Configura o modal para limpeza adequada
+    $('#leadSelectionModal').modal({
+        backdrop: 'static',
+        keyboard: false,
+        scroll: true
+    });
+
+    // Manipula a mudança do tipo de seleção
+    $('input[name="selectionType"]').change(function() {
+        const selectedType = $(this).val();
+
+        // Reseta todas as seleções
+        $('.lead-checkbox').prop('checked', false);
+        $('#selectAllCheckbox').prop('checked', false);
+
+        // Mostra/oculta a seção de intervalo de datas
+        $('#dateRangeSection').toggleClass('d-none', selectedType !== 'date');
+
+        // Manipula a opção "Selecionar Todos"
+        if (selectedType === 'all') {
+            $('.lead-checkbox').prop('checked', true);
+        }
+
+        updateSelectedCount();
+    });
+
+    // Manipula o checkbox "Selecionar Todos"
+    $('#selectAllCheckbox').change(function() {
+        $('.lead-checkbox').prop('checked', $(this).prop('checked'));
+        updateSelectedCount();
+    });
+
+    // Manipula checkboxes individuais
+    $('.lead-checkbox').change(updateSelectedCount);
+
+    // Atualiza a contagem de leads selecionados
+    function updateSelectedCount() {
+        const count = $('.lead-checkbox:checked').length;
+        $('#selectedLeadsCount').text(count);
     }
+
+
+    // Manipula a seleção por intervalo de datas
+    $('input[name="data_inicio"], input[name="data_fim"]').change(function() {
+        const dataInicio = $('input[name="data_inicio"]').val();
+        const dataFim = $('input[name="data_fim"]').val();
+
+        if (dataInicio && dataFim) {
+            $('.lead-checkbox').each(function() {
+                const row = $(this).closest('tr');
+                const dataEnvio = row.find('td:last').text();
+
+                // Lógica de comparação de datas (ajustar conforme o formato)
+                $(this).prop('checked', true); // Simplificado para o exemplo
+            });
+
+            updateSelectedCount();
+        }
+    });
+});
+</script>
+
+<script>
+// Script para confirmar a seleção de leads e atualizar a contagem
+$(document).ready(function() {
+    // Manipula o clique no botão "Confirmar Seleção"
+    $('#confirmLeadSelection').click(function() {
+        const selectedType = $('input[name="selectionType"]:checked').val();
+        let selectedCount = 0;
+
+        switch (selectedType) {
+            case 'all':
+                // Seleciona todos os leads
+                $('.lead-checkbox').prop('checked', true);
+                selectedCount = $('.lead-checkbox').length;
+                break;
+
+            case 'date':
+                // Seleciona por data
+                const dataInicio = $('input[name="data_inicio"]').val();
+                const dataFim = $('input[name="data_fim"]').val();
+
+                if (!dataInicio || !dataFim) {
+                    alert('Por favor, selecione um período válido');
+                    return;
+                }
+
+                $('.lead-checkbox').each(function() {
+                    const dataEnvio = $(this).closest('tr').find('td:last').text();
+                    // Convertendo as datas para um formato comparável (YYYY-MM-DD)
+                    const dataEnvioFormatada = new Date(dataEnvio);
+                    const dataInicioFormatada = new Date(dataInicio);
+                    const dataFimFormatada = new Date(dataFim);
+
+                    if (dataEnvioFormatada >= dataInicioFormatada && dataEnvioFormatada <= dataFimFormatada) {
+                        $(this).prop('checked', true);
+                        selectedCount++;
+                    } else {
+                        $(this).prop('checked', false);
+                    }
+                });
+                break;
+
+            case 'manual':
+                // Contagem da seleção manual
+                selectedCount = $('.lead-checkbox:checked').length;
+                break;
+        }
+
+        // Atualiza o contador de leads selecionados
+        $('#selectedLeadsCount').text(selectedCount);
+
+        // Fecha o modal
+        $('#leadSelectionModal').modal('hide');
+
+
+        // Adiciona mensagem de confirmação (opcional)
+        if (selectedCount > 0) {
+            $('<div>')
+                .addClass('alert alert-success mt-2')
+                .text(`${selectedCount} leads selecionados com sucesso!`)
+                .insertAfter('#selectedLeadsCount')
+                .fadeOut(3000);
+        }
+    });
+
+    // Garante que o estado do body seja restaurado quando o modal for fechado
+    $('#leadSelectionModal').on('hidden.bs.modal', function() {
+        $('body').removeClass('modal-open');      // Remove a classe modal-open
+        $('body').css('padding-right', '');     // Remove o padding-right
+        $('.modal-backdrop').remove();          // Remove o backdrop
+        $('body').css('overflow', 'auto'); // Restaura o overflow
+    });
+
+
+    // Atualiza a contagem quando checkboxes individuais são clicados
+    $('.lead-checkbox').change(function() {
+        const count = $('.lead-checkbox:checked').length;
+        $('#selectedLeadsCount').text(count);
+    });
+
+    // Mostra/oculta a seção de datas
+    $('input[name="selectionType"]').change(function() {
+        $('#dateRangeSection').toggleClass('d-none', $(this).val() !== 'date');
+    });
 });
 
-        // Configura o modal para limpeza adequada
-        $('#leadSelectionModal').modal({
-            backdrop: 'static',
-            keyboard: false,
-            scroll: true
-        });
 
-        // Manipula a mudança do tipo de seleção
-        $('input[name="selectionType"]').change(function() {
-            const selectedType = $(this).val();
+// --- Início:  Código para UMA confirmação estilizada ---
+$(document).ready(function() {
+    $('#btnIniciarEnvio').click(function(e) {
+        e.preventDefault();
 
-            // Reseta todas as seleções
-            $('.lead-checkbox').prop('checked', false);
-            $('#selectAllCheckbox').prop('checked', false);
-
-            // Mostra/oculta a seção de intervalo de datas
-            $('#dateRangeSection').toggleClass('d-none', selectedType !== 'date');
-
-            // Manipula a opção "Selecionar Todos"
-            if (selectedType === 'all') {
-                $('.lead-checkbox').prop('checked', true);
-            }
-
-            updateSelectedCount();
-        });
-
-        // Manipula o checkbox "Selecionar Todos"
-        $('#selectAllCheckbox').change(function() {
-            $('.lead-checkbox').prop('checked', $(this).prop('checked'));
-            updateSelectedCount();
-        });
-
-        // Manipula checkboxes individuais
-        $('.lead-checkbox').change(updateSelectedCount);
-
-        // Atualiza a contagem de leads selecionados
-        function updateSelectedCount() {
-            const count = $('.lead-checkbox:checked').length;
-            $('#selectedLeadsCount').text(count);
+        const selectedLeadsCount = $('.lead-checkbox:checked').length;
+        if (selectedLeadsCount === 0) {
+            alert('Por favor, selecione pelo menos um lead para envio.');
+            return;
         }
 
-        // Manipula o envio do formulário
-        $('#massMessageForm').submit(function(e) {
-    e.preventDefault();
-    
-    const selectedLeads = $('.lead-checkbox:checked').length;
-    if (selectedLeads === 0) {
-        alert('Por favor, selecione pelo menos um lead para envio.');
-        return false;
-    }
+        // Define o número de leads no modal de confirmação
+        $('#numLeadsConfirmacao').text(selectedLeadsCount);
 
-    if (confirm(`Confirma o envio para ${selectedLeads} leads?`)) {
-        const formData = new FormData(this);
-        
+        // Mostra o modal de confirmação estilizado
+        $('#confirmacaoEnvioModal').modal('show');
+    });
+
+    // Manipula o clique no botão "Confirmar Envio" dentro do modal
+    $('#confirmarEnvioBtn').click(function() {
+        // Fecha o modal de confirmação
+        $('#confirmacaoEnvioModal').modal('hide');
+
+        // Prepara os dados do formulário e inicia o envio via AJAX
+        const formData = new FormData($('#massMessageForm')[0]);
+
+        // Adiciona os leads selecionados ao FormData
+        $('.lead-checkbox:checked').each(function() {
+            formData.append('selected_leads[]', $(this).val());
+        });
+
         $.ajax({
-            url: $(this).attr('action'),
+            url: $('#massMessageForm').attr('action'),
             type: 'POST',
             data: formData,
             processData: false,
             contentType: false,
             success: function(response) {
-                // Inicia o monitoramento do progresso real
+                // Inicia o monitoramento do progresso
                 iniciarMonitoramentoProgresso();
             },
             error: function(xhr, status, error) {
                 alert('Erro ao iniciar o envio: ' + error);
             }
         });
-    }
+    });
+
+     // Remove o manipulador de submit original (agora desnecessário)
+     $('#massMessageForm').off('submit');
 });
-        // Manipula a seleção por intervalo de datas
-        $('input[name="data_inicio"], input[name="data_fim"]').change(function() {
-            const dataInicio = $('input[name="data_inicio"]').val();
-            const dataFim = $('input[name="data_fim"]').val();
+// --- Fim: Código para UMA confirmação estilizada ---
+</script>
 
-            if (dataInicio && dataFim) {
-                $('.lead-checkbox').each(function() {
-                    const row = $(this).closest('tr');
-                    const dataEnvio = row.find('td:last').text();
+<script>
+// Integração com a API do Claude (Frontend)
+const PROXY_URL = 'claude_proxy.php'; //  Arquivo proxy
 
-                    // Lógica de comparação de datas (ajustar conforme o formato)
-                    $(this).prop('checked', true); // Simplificado para o exemplo
-                });
+// Função para gerar texto com o Claude
+async function generateWithClaude(prompt) {
+    try {
+        console.log('Enviando prompt:', prompt);
 
-                updateSelectedCount();
-            }
-        });
-    });
-    </script>
-
-    <script>
-    // Script para confirmar a seleção de leads e atualizar a contagem
-    $(document).ready(function() {
-        // Manipula o clique no botão "Confirmar Seleção"
-        $('#confirmLeadSelection').click(function() {
-            const selectedType = $('input[name="selectionType"]:checked').val();
-            let selectedCount = 0;
-
-            switch (selectedType) {
-                case 'all':
-                    // Seleciona todos os leads
-                    $('.lead-checkbox').prop('checked', true);
-                    selectedCount = $('.lead-checkbox').length;
-                    break;
-
-                case 'date':
-                    // Seleciona por data
-                    const dataInicio = $('input[name="data_inicio"]').val();
-                    const dataFim = $('input[name="data_fim"]').val();
-
-                    if (!dataInicio || !dataFim) {
-                        alert('Por favor, selecione um período válido');
-                        return;
-                    }
-
-                    $('.lead-checkbox').each(function() {
-                        const dataEnvio = $(this).closest('tr').find('td:last').text();
-                        // Convertendo as datas para um formato comparável (YYYY-MM-DD)
-                        const dataEnvioFormatada = new Date(dataEnvio);
-                        const dataInicioFormatada = new Date(dataInicio);
-                        const dataFimFormatada = new Date(dataFim);
-
-                        if (dataEnvioFormatada >= dataInicioFormatada && dataEnvioFormatada <= dataFimFormatada) {
-                            $(this).prop('checked', true);
-                            selectedCount++;
-                        } else {
-                            $(this).prop('checked', false);
-                        }
-                    });
-                    break;
-
-                case 'manual':
-                    // Contagem da seleção manual
-                    selectedCount = $('.lead-checkbox:checked').length;
-                    break;
-            }
-
-            // Atualiza o contador de leads selecionados
-            $('#selectedLeadsCount').text(selectedCount);
-
-            // Fecha o modal
-            $('#leadSelectionModal').modal('hide');
-
-
-            // Adiciona mensagem de confirmação (opcional, mantido do seu código)
-            if (selectedCount > 0) {
-                $('<div>')
-                    .addClass('alert alert-success mt-2')
-                    .text(`${selectedCount} leads selecionados com sucesso!`)
-                    .insertAfter('#selectedLeadsCount')
-                    .fadeOut(3000);
-            }
+        const response = await fetch(PROXY_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                prompt: prompt
+            })
         });
 
-        // Garante que o estado do body seja restaurado quando o modal for fechado de outras formas
-        $('#leadSelectionModal').on('hidden.bs.modal', function() {
-            $('body').removeClass('modal-open');      // Remove a classe modal-open
-            $('body').css('padding-right', '');     // Remove o padding-right
-            $('.modal-backdrop').remove();          // Remove o backdrop (opcional, mas recomendado para limpeza completa)
-            $('body').css('overflow', 'auto'); // Adicionado: Restaura o overflow
-        });
-
-
-        // Atualiza a contagem quando checkboxes individuais são clicados
-        $('.lead-checkbox').change(function() {
-            const count = $('.lead-checkbox:checked').length;
-            $('#selectedLeadsCount').text(count);
-        });
-
-        // Mostra/oculta a seção de datas
-        $('input[name="selectionType"]').change(function() {
-            $('#dateRangeSection').toggleClass('d-none', $(this).val() !== 'date');
-        });
-    });
-
-    // Script para preparar os dados do formulário antes do envio
-    $('#massMessageForm').submit(function(e) {
-        e.preventDefault();
-
-        // Coleta todos os leads selecionados
-        const selectedLeads = [];
-        $('.lead-checkbox:checked').each(function() {
-            selectedLeads.push($(this).val());
-        });
-
-        if (selectedLeads.length === 0) {
-            alert('Por favor, selecione pelo menos um lead para envio.');
-            return false;
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        // Adiciona os leads selecionados ao formulário
-        selectedLeads.forEach(leadId => {
-            $('<input>').attr({
-                type: 'hidden',
-                name: 'selected_leads[]',
-                value: leadId
-            }).appendTo($(this));
-        });
+        const data = await response.json();
+        console.log('Resposta completa da API:', data);
 
-        // Confirma o envio
-        if (confirm(`Confirma o envio para ${selectedLeads.length} leads?`)) {
-            this.submit();
+        if (!data.success) {
+            throw new Error(data.error || 'Erro desconhecido na API');
         }
-    });
-    </script>
 
-    <script>
-    // Integração com a API do Claude (Frontend)
-    const PROXY_URL = 'claude_proxy.php';
+        if (!data.content || typeof data.content !== 'string') {
+            throw new Error('Resposta sem conteúdo válido');
+        }
 
-    // Função para gerar texto com o Claude
-    async function generateWithClaude(prompt) {
+        return data.content;
+
+    } catch (error) {
+        console.error('Erro detalhado:', error);
+        throw error;
+    }
+}
+
+// Script para controlar o Assistente de IA
+$(document).ready(function() {
+    const $aiAssistant = $('#aiAssistant');
+    const $aiThinking = $('.ai-thinking');
+    const $aiResponse = $('#aiResponse');
+    const $mensagem = $('#mensagem');
+    const $aiActions = $('#aiActions');
+    const $btnUsarSugestao = $('#btnUsarSugestao');
+
+            // Função para exibir erros
+            function showError(message) {
+        const errorMessage = typeof message === 'object' ?
+            JSON.stringify(message, null, 2) : message;
+
+        $aiResponse.html(`
+            <div class="alert alert-danger">
+                <strong>Erro:</strong> ${errorMessage}<br>
+                <small>Por favor, tente novamente. Se o erro persistir, contate o suporte.</small>
+            </div>
+        `);
+        $aiActions.addClass('d-none');
+    }
+
+    // Função para exibir sugestões/mensagens geradas
+    function showSuccess(content, title = 'Sugestão') {
+        if (!content) {
+            showError('Conteúdo da resposta vazio');
+            return;
+        }
+
+        const sanitizedContent = content
+            .replace(/</g, '<')  // Corrigido para <
+            .replace(/>/g, '>')  // Corrigido para >
+            .replace(/\n/g, '<br>');
+
+        $aiResponse.html(`
+            <div class="alert alert-success">
+                <strong>${title}:</strong><br>
+                ${sanitizedContent}
+            </div>
+        `);
+        $aiActions.removeClass('d-none');
+    }
+
+    // Função para processar requisições à IA
+    async function processAIRequest(prompt, type = 'sugestão') {
         try {
-            console.log('Enviando prompt:', prompt);
-
-            const response = await fetch(PROXY_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    prompt: prompt
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            if (!prompt) {
+                throw new Error('Prompt não pode estar vazio');
             }
 
-            const data = await response.json();
-            console.log('Resposta completa da API:', data);
+            $aiAssistant.removeClass('d-none');
+            $aiThinking.removeClass('d-none');
+            $aiResponse.empty();
+            $aiActions.addClass('d-none');
 
-            if (!data.success) {
-                throw new Error(data.error || 'Erro desconhecido na API');
+            console.log('Processando requisição:', type);
+            const result = await generateWithClaude(prompt);
+
+            if (result) {
+                showSuccess(result, type === 'sugestão' ? 'Sugestão' : 'Mensagem Gerada');
+            } else {
+                throw new Error(`Não foi possível gerar a ${type}`);
             }
-
-            if (!data.content || typeof data.content !== 'string') {
-                throw new Error('Resposta sem conteúdo válido');
-            }
-
-            return data.content;
 
         } catch (error) {
-            console.error('Erro detalhado:', error);
-            throw error;
+            console.error('Erro ao processar requisição:', error);
+            showError(error.message || 'Erro desconhecido ao processar requisição');
+        } finally {
+            $aiThinking.addClass('d-none');
         }
     }
 
-    // Script para controlar o Assistente de IA
-    $(document).ready(function() {
-        const $aiAssistant = $('#aiAssistant');
-        const $aiThinking = $('.ai-thinking');
-        const $aiResponse = $('#aiResponse');
-        const $mensagem = $('#mensagem');
-        const $aiActions = $('#aiActions');
-        const $btnUsarSugestao = $('#btnUsarSugestao');
-
-                // Função para exibir erros
-                function showError(message) {
-            const errorMessage = typeof message === 'object' ?
-                JSON.stringify(message, null, 2) : message;
-
-            $aiResponse.html(`
-                <div class="alert alert-danger">
-                    <strong>Erro:</strong> ${errorMessage}<br>
-                    <small>Por favor, tente novamente. Se o erro persistir, contate o suporte.</small>
-                </div>
-            `);
-            $aiActions.addClass('d-none');
+    // Manipula o clique no botão "Sugerir Melhorias"
+    $('#btnSugestao').click(async function() {
+        const currentText = $mensagem.val().trim();
+        if (!currentText) {
+            showError('Por favor, insira uma mensagem para receber sugestões.');
+            return;
         }
 
-        // Função para exibir sugestões/mensagens geradas
-        function showSuccess(content, title = 'Sugestão') {
-            if (!content) {
-                showError('Conteúdo da resposta vazio');
-                return;
-            }
+        const prompt = `
+            Analise e melhore esta mensagem de WhatsApp:
+            "${currentText}"
 
-            const sanitizedContent = content
-                .replace(/</g, '<')  // Corrigido para <
-                .replace(/>/g, '>')  // Corrigido para >
-                .replace(/\n/g, '<br>');
+            Requisitos:
+            - Mantenha o tom profissional e amigável
+            - Torne a mensagem mais persuasiva
+            - Mantenha a essência do conteúdo original
+            - Adicione elementos de engajamento
+            - Use emojis apropriados
+            - Mantenha a mensagem concisa
 
-            $aiResponse.html(`
-                <div class="alert alert-success">
-                    <strong>${title}:</strong><br>
-                    ${sanitizedContent}
-                </div>
-            `);
-            $aiActions.removeClass('d-none');
+            Responda apenas com a mensagem melhorada, sem explicações adicionais.
+        `.trim();
+
+        await processAIRequest(prompt, 'sugestão');
+    });
+
+    // Manipula o clique no botão "Criar Mensagem" (REMOVIDO - Não havia implementação)
+    // $('#btnCriarMensagem').click(async function() { ... });  // Removido
+
+    // Manipula o clique no botão "Usar Sugestão"
+    $btnUsarSugestao.click(function() {
+        const $successAlert = $aiResponse.find('.alert-success');
+        if (!$successAlert.length) {
+            showError('Nenhuma sugestão disponível para usar');
+            return;
         }
 
-        // Função para processar requisições à IA
-        async function processAIRequest(prompt, type = 'sugestão') {
-            try {
-                if (!prompt) {
-                    throw new Error('Prompt não pode estar vazio');
-                }
+        const suggestion = $successAlert.text()
+            .replace('Sugestão:', '')
+            .replace('Mensagem Gerada:', '')
+            .trim();
 
-                $aiAssistant.removeClass('d-none');
-                $aiThinking.removeClass('d-none');
-                $aiResponse.empty();
-                $aiActions.addClass('d-none');
-
-                console.log('Processando requisição:', type);
-                const result = await generateWithClaude(prompt);
-
-                if (result) {
-                    showSuccess(result, type === 'sugestão' ? 'Sugestão' : 'Mensagem Gerada');
-                } else {
-                    throw new Error(`Não foi possível gerar a ${type}`);
-                }
-
-            } catch (error) {
-                console.error('Erro ao processar requisição:', error);
-                showError(error.message || 'Erro desconhecido ao processar requisição');
-            } finally {
-                $aiThinking.addClass('d-none');
-            }
-        }
-
-        // Manipula o clique no botão "Sugerir Melhorias"
-        $('#btnSugestao').click(async function() {
-            const currentText = $mensagem.val().trim();
-            if (!currentText) {
-                showError('Por favor, insira uma mensagem para receber sugestões.');
-                return;
-            }
-
-            const prompt = `
-                Analise e melhore esta mensagem de WhatsApp:
-                "${currentText}"
-
-                Requisitos:
-                - Mantenha o tom profissional e amigável
-                - Torne a mensagem mais persuasiva
-                - Mantenha a essência do conteúdo original
-                - Adicione elementos de engajamento
-                - Use emojis apropriados
-                - Mantenha a mensagem concisa
-
-                Responda apenas com a mensagem melhorada, sem explicações adicionais.
-            `.trim();
-
-            await processAIRequest(prompt, 'sugestão');
-        });
-
-        // Manipula o clique no botão "Criar Mensagem" (REMOVIDO - Não havia implementação)
-        // $('#btnCriarMensagem').click(async function() { ... });  // Removido
-
-        // Manipula o clique no botão "Usar Sugestão"
-        $btnUsarSugestao.click(function() {
-            const $successAlert = $aiResponse.find('.alert-success');
-            if (!$successAlert.length) {
-                showError('Nenhuma sugestão disponível para usar');
-                return;
-            }
-
-            const suggestion = $successAlert.text()
-                .replace('Sugestão:', '')
-                .replace('Mensagem Gerada:', '')
-                .trim();
-
-            if (suggestion) {
-                $mensagem.val(suggestion);
-                updateMessagePreview(); // Atualiza o preview (função definida mais abaixo)
-                $aiAssistant.addClass('d-none');
-            } else {
-                showError('Nenhum conteúdo disponível na sugestão');
-            }
-        });
-
-        // Atualiza o preview da mensagem em tempo real (com debounce)
-        let previewTimeout;
-        $mensagem.on('input', function() {
-            clearTimeout(previewTimeout);
-            previewTimeout = setTimeout(updateMessagePreview, 500); // 500ms de debounce
-        });
-
-        // Função para atualizar o preview da mensagem
-        function updateMessagePreview() {
-            const messageText = $mensagem.val();
-            if (!messageText) {
-                $('#messagePreview').html('Preview da mensagem...'); // Placeholder
-                return;
-            }
-
-            const sanitizedText = messageText
-                .replace(/</g, '<') // Corrigido
-                .replace(/>/g, '>') // Corrigido
-                .replace(/\n/g, '<br>');
-
-            $('#messagePreview').html(sanitizedText);
-        }
-
-        // Limpa timeouts pendentes ao desmontar a página
-        $(window).on('unload', function() {
-            if (previewTimeout) {
-                clearTimeout(previewTimeout);
-            }
-        });
-
-        // Inicializa o preview
-        updateMessagePreview();
-
-        // Adiciona botão para fechar o assistente
-        $('#btnFecharAssistente').click(function() {
+        if (suggestion) {
+            $mensagem.val(suggestion);
+            updateMessagePreview(); // Atualiza o preview
             $aiAssistant.addClass('d-none');
-        });
-
-        // Tratamento de erros global (opcional, mas recomendado)
-        window.onerror = function(msg, url, line, col, error) {
-            console.error('Erro global:', { msg, url, line, col, error });
-            showError('Erro inesperado. Por favor, tente novamente.');
-            $aiThinking.addClass('d-none');
-            return false;
-        };
+        } else {
+            showError('Nenhum conteúdo disponível na sugestão');
+        }
     });
-    </script>
 
-    <script>
-    // Script para o envio em massa (refatorado e melhorado)
-    $(document).ready(function() {
-        const leads = <?php echo json_encode($leads); ?>;
-        let currentLeadIndex = 0;
-        let processedLeads = new Set(); // Conjunto para rastrear leads já processados
+    // Atualiza o preview da mensagem em tempo real (com debounce)
+    let previewTimeout;
+    $mensagem.on('input', function() {
+        clearTimeout(previewTimeout);
+        previewTimeout = setTimeout(updateMessagePreview, 500); // 500ms debounce
+    });
 
-        // Atualiza o preview da mensagem
-        $('#mensagem').on('input', updateMessagePreview);
-
-        function updateMessagePreview() {
-            let mensagem = $('#mensagem').val();
-            if (leads.length > 0) {
-                mensagem = mensagem.replace('{nome}', leads[0].nome); // Usa o primeiro lead como exemplo
-            }
-            $('#messagePreview').html(mensagem.replace(/\n/g, '<br>'));
+    // Função para atualizar o preview da mensagem
+    function updateMessagePreview() {
+        const messageText = $mensagem.val();
+        if (!messageText) {
+            $('#messagePreview').html('Preview da mensagem...'); // Placeholder
+            return;
         }
 
-        // Inicializa o preview
-        updateMessagePreview();
+        const sanitizedText = messageText
+            .replace(/</g, '<') // Corrigido
+            .replace(/>/g, '>') // Corrigido
+            .replace(/\n/g, '<br>');
 
-        // Manipula o envio do formulário
-        $('#massMessageForm').on('submit', function(e) {
-            e.preventDefault();
+        $('#messagePreview').html(sanitizedText);
+    }
 
-            const selectedLeads = $('.lead-checkbox:checked').length; // Obtém a contagem correta
-            const confirmacao = confirm(`Você está prestes a enviar mensagens para ${selectedLeads} leads. Deseja continuar?`);
-            if (confirmacao) {
-                iniciarEnvioEmMassa();
-            }
-        });
-
-        // Função para finalizar o envio
-        function finalizarEnvio() {
-            $('#btnEnviar').prop('disabled', false); // Reabilita o botão (se existir)
-            mostrarNotificacao('Envio em massa concluído!\nTotal de mensagens enviadas: ' + processedLeads.size, 'success');
-
-            // Atualiza a página para mostrar o status atualizado dos leads
-            setTimeout(() => {
-                location.reload();
-            }, 2000);
+    // Limpa timeouts pendentes ao desmontar a página
+    $(window).on('unload', function() {
+        if (previewTimeout) {
+            clearTimeout(previewTimeout);
         }
-      // Função para enviar a próxima mensagem
-        function enviarProximaMensagem() {
-            if (currentLeadIndex >= leads.length) {
-                finalizarEnvio();
-                return;
-            }
+    });
 
-            const lead = leads[currentLeadIndex];
+    // Inicializa o preview
+    updateMessagePreview();
 
-            // Verifica se o lead já foi processado
-            if (processedLeads.has(lead.id)) {
-                currentLeadIndex++;
-                enviarProximaMensagem();
-                return;
-            }
+    // Adiciona botão para fechar o assistente
+    $('#btnFecharAssistente').click(function() {
+        $aiAssistant.addClass('d-none');
+    });
 
-            $('#currentCount').text(currentLeadIndex + 1); // Atualiza contagem
-            const progress = ((currentLeadIndex + 1) / leads.length) * 100;
-            $('#progressBar').css('width', progress + '%').attr('aria-valuenow', progress); // Atualiza barra de progresso
+    // Tratamento de erros global (opcional)
+    window.onerror = function(msg, url, line, col, error) {
+        console.error('Erro global:', { msg, url, line, col, error });
+        showError('Erro inesperado. Por favor, tente novamente.');
+        $aiThinking.addClass('d-none');
+        return false;
+    };
+});
+</script>
+
+<script>
+// Script para o envio em massa (refatorado e melhorado)
+$(document).ready(function() {
+    const leads = <?php echo json_encode($leads); ?>;
+    let currentLeadIndex = 0;
+    let processedLeads = new Set(); // Conjunto para rastrear leads processados
+
+    // Atualiza o preview da mensagem
+    $('#mensagem').on('input', updateMessagePreview);
+
+    function updateMessagePreview() {
+        let mensagem = $('#mensagem').val();
+        if (leads.length > 0) {
+            mensagem = mensagem.replace('{nome}', leads[0].nome); // Usa o primeiro lead
+        }
+        $('#messagePreview').html(mensagem.replace(/\n/g, '<br>'));
+    }
+
+    // Inicializa o preview
+    updateMessagePreview();
 
 
-            const dispositivo_id = $('#dispositivo_id').val(); // Usar o ID correto do campo
 
-            if (!dispositivo_id) {
-                mostrarNotificacao('Erro: Dispositivo não selecionado', 'error');
-                return;
-            }
+    // Função para finalizar o envio
+    function finalizarEnvio() {
+        $('#btnEnviar').prop('disabled', false); // Reabilita o botão
+        mostrarNotificacao('Envio em massa concluído!\nTotal de mensagens enviadas: ' + processedLeads.size, 'success');
 
-            // Formata o número corretamente
-            let numero = lead.numero.replace(/\D/g, '');
-            if ((numero.length === 10 || numero.length === 11) && !numero.startsWith('55')) {
-                numero = '55' + numero;
-            }
-
-            // Obtém o caminho do arquivo do campo oculto (se houver)
-            const filePath = $('input[name="arquivo"]').val(); // Obtém o valor do campo de arquivo
-
-
-            const data = {
-                deviceId: dispositivo_id,
-                number: numero,
-                message: $('#mensagem').val().replace('{nome}', lead.nome),
-                mediaPath: filePath // Adiciona o caminho do arquivo, se houver
-            };
-
-            $.ajax({
-                url: 'http://localhost:3000/send-message',
-                type: 'POST',
-                data: JSON.stringify(data),
-                contentType: 'application/json',
-                success: function(response) {
-                    if (response.success) {
-                        processedLeads.add(lead.id); // Marca o lead como processado
-
-                        // Registra o envio no banco
-                        $.post('registrar_envio.php', { // Certifique-se de que este arquivo existe e funciona corretamente
-                            lead_id: lead.id,
-                            dispositivo_id: dispositivo_id,
-                            status: 'ENVIADO',
-                            arquivo: filePath // Salva o caminho do arquivo no banco
-                        });
-
-                        mostrarNotificacao('Mensagem enviada com sucesso para ' + lead.nome, 'success');
-                    } else {
-                        mostrarNotificacao('Erro ao enviar mensagem para ' + lead.nome + ': ' + response.message, 'error');
-                    }
-
-                    currentLeadIndex++;
-                    setTimeout(enviarProximaMensagem, Math.random() * 5000 + 5000); // Intervalo aleatório
-                },
-                error: function(xhr, status, error) {
-                    console.error('Erro na requisição:', xhr.responseText);
-                    mostrarNotificacao('Erro ao enviar mensagem para ' + lead.nome + ': ' + error, 'error');
-
-                    currentLeadIndex++;
-                    setTimeout(enviarProximaMensagem, 5000); // Tenta novamente após 5 segundos
-                }
-            });
+        // Atualiza a página para mostrar o status dos leads
+        setTimeout(() => {
+            location.reload();
+        }, 2000);
+    }
+  // Função para enviar a próxima mensagem
+    function enviarProximaMensagem() {
+        if (currentLeadIndex >= leads.length) {
+            finalizarEnvio();
+            return;
         }
 
+        const lead = leads[currentLeadIndex];
 
-        // Função para iniciar o envio em massa
-        function iniciarEnvioEmMassa() {
-            processedLeads.clear(); // Limpa o conjunto de leads processados
-            currentLeadIndex = 0;
-
-            // Verifica se há leads para enviar
-            if (leads.length === 0) {
-                mostrarNotificacao('Não há leads para enviar mensagens.', 'error');
-                return;
-            }
-
-            // Verifica o dispositivo selecionado
-            const dispositivo_id = $('#dispositivo_id').val(); // ID correto do campo
-            if (!dispositivo_id) {
-                mostrarNotificacao('Por favor, selecione um dispositivo.', 'error');
-                return;
-            }
-
-            $('#btnEnviar').prop('disabled', true); // Desabilita o botão (se existir)
-            $('#progressSection, #sendingStatus').removeClass('d-none'); // Mostra a barra de progresso
-            $('#totalCount').text(leads.length); // Define o total de leads
-
+        // Verifica se o lead já foi processado
+        if (processedLeads.has(lead.id)) {
+            currentLeadIndex++;
             enviarProximaMensagem();
+            return;
         }
 
-        // Funções de validação (opcional, mas recomendado)
-        function validarNumeroTelefone($numero) {
-            $numero = preg_replace('/[^0-9]/', '', $numero);
-            return strlen($numero) === 10 || strlen($numero) === 11;
+        $('#currentCount').text(currentLeadIndex + 1); // Atualiza contagem
+        const progress = ((currentLeadIndex + 1) / leads.length) * 100;
+        $('#progressBar').css('width', progress + '%').attr('aria-valuenow', progress); // Atualiza barra
+
+
+        const dispositivo_id = $('#dispositivo_id').val(); // ID correto
+
+        if (!dispositivo_id) {
+            mostrarNotificacao('Erro: Dispositivo não selecionado', 'error');
+            return;
         }
 
-        function validarNumeroWhatsApp($numero) {
-            $numero = preg_replace('/[^0-9]/', '', $numero);
-            if (!str_starts_with($numero, '55')) {
-                $numero = '55' + $numero;
+        // Formata o número
+        let numero = lead.numero.replace(/\D/g, '');
+        if ((numero.length === 10 || numero.length === 11) && !numero.startsWith('55')) {
+            numero = '55' + numero;
+        }
+
+        // Obtém o caminho do arquivo do campo oculto
+        const filePath = $('input[name="arquivo"]').val(); // Valor do campo
+
+
+        const data = {
+            deviceId: dispositivo_id,
+            number: numero,
+            message: $('#mensagem').val().replace('{nome}', lead.nome),
+            mediaPath: filePath // Adiciona o caminho
+        };
+
+        $.ajax({
+            url: 'http://localhost:3000/send-message',
+            type: 'POST',
+            data: JSON.stringify(data),
+            contentType: 'application/json',
+            success: function(response) {
+                if (response.success) {
+                    processedLeads.add(lead.id); // Marca como processado
+
+                    // Registra o envio no banco
+                    $.post('registrar_envio.php', { // Arquivo que registra
+                        lead_id: lead.id,
+                        dispositivo_id: dispositivo_id,
+                        status: 'ENVIADO',
+                        arquivo: filePath // Salva o caminho
+                    });
+
+                    mostrarNotificacao('Mensagem enviada com sucesso para ' + lead.nome, 'success');
+                } else {
+                    mostrarNotificacao('Erro ao enviar mensagem para ' + lead.nome + ': ' + response.message, 'error');
+                }
+
+                currentLeadIndex++;
+                setTimeout(enviarProximaMensagem, Math.random() * 5000 + 5000); // Intervalo
+            },
+            error: function(xhr, status, error) {
+                console.error('Erro na requisição:', xhr.responseText);
+                mostrarNotificacao('Erro ao enviar mensagem para ' + lead.nome + ': ' + error, 'error');
+
+                currentLeadIndex++;
+                setTimeout(enviarProximaMensagem, 5000); // Tenta novamente
             }
-            return strlen($numero) >= 12 && strlen($numero) <= 13 ? $numero : false;
+        });
+    }
+
+
+    // Função para iniciar o envio em massa
+    function iniciarEnvioEmMassa() {
+        processedLeads.clear(); // Limpa leads processados
+        currentLeadIndex = 0;
+
+        // Verifica se há leads
+        if (leads.length === 0) {
+            mostrarNotificacao('Não há leads para enviar mensagens.', 'error');
+            return;
         }
 
-        // Função para mostrar notificações
-        function mostrarNotificacao(mensagem, tipo) {
-            const $notificacao = $('<div class="notification ' + tipo + '">' + mensagem + '</div>');
-            $('body').append($notificacao);
-            $notificacao.addClass('show');
+        // Verifica o dispositivo
+        const dispositivo_id = $('#dispositivo_id').val(); // ID correto
+        if (!dispositivo_id) {
+            mostrarNotificacao('Por favor, selecione um dispositivo.', 'error');
+            return;
+        }
 
-            // Remove a notificação após 3 segundos
+        $('#btnEnviar').prop('disabled', true); // Desabilita o botão
+        $('#progressSection, #sendingStatus').removeClass('d-none'); // Mostra progresso
+        $('#totalCount').text(leads.length); // Total de leads
+
+        enviarProximaMensagem();
+    }
+
+    // Funções de validação (opcional)
+    function validarNumeroTelefone($numero) {
+        $numero = preg_replace('/[^0-9]/', '', $numero);
+        return strlen($numero) === 10 || strlen($numero) === 11;
+    }
+
+    function validarNumeroWhatsApp($numero) {
+        $numero = preg_replace('/[^0-9]/', '', $numero);
+        if (!str_starts_with($numero, '55')) {
+            $numero = '55' + $numero;
+        }
+        return strlen($numero) >= 12 && strlen($numero) <= 13 ? $numero : false;
+    }
+
+    // Função para mostrar notificações
+    function mostrarNotificacao(mensagem, tipo) {
+        const $notificacao = $('<div class="notification ' + tipo + '">' + mensagem + '</div>');
+        $('body').append($notificacao);
+        $notificacao.addClass('show');
+
+        // Remove após 3 segundos
+        setTimeout(function() {
+            $notificacao.removeClass('show');
             setTimeout(function() {
-                $notificacao.removeClass('show');
-                setTimeout(function() {
-                    $notificacao.remove();
-                }, 300); // Aguarda a transição terminar
-            }, 3000);
-        }
-    });
-    </script>
+                $notificacao.remove();
+            }, 300); // Aguarda transição
+        }, 3000);
+    }
+});
+</script>
 
 <script>
 // Função para iniciar o progresso
 function iniciarProgresso(total) {
-    // Mostra o container do progresso
+    // Mostra o container
     $('#progressContainer').removeClass('d-none');
-    
-    // Define o total de mensagens
+
+    // Define o total
     $('#totalMessages').text(total);
     $('#currentMessage').text('0');
-    
-    // Reseta a barra de progresso
+
+    // Reseta a barra
     $('#progressBar').css('width', '0%');
     $('#progressText').text('0%');
 }
@@ -1310,72 +1387,38 @@ function iniciarProgresso(total) {
 // Função para atualizar o progresso
 function atualizarProgresso(atual, total) {
     const porcentagem = Math.round((atual / total) * 100);
-    
+
     $('#progressBar').css('width', porcentagem + '%');
     $('#progressText').text(porcentagem + '%');
     $('#currentMessage').text(atual);
 }
 
-// Quando o formulário for enviado
-$('#massMessageForm').submit(function(e) {
-    e.preventDefault();
-    
-    // Pega o número de leads selecionados
-    const totalLeads = $('.lead-checkbox:checked').length;
-    
-    if (totalLeads === 0) {
-        alert('Selecione pelo menos um lead para envio.');
-        return;
-    }
-    
-    if (confirm(`Confirma o envio para ${totalLeads} leads?`)) {
-        // Inicia a barra de progresso
-        iniciarProgresso(totalLeads);
-        
-        // Simula o progresso (você precisará adaptar isso para seu sistema real)
-        let atual = 0;
-        const intervalo = setInterval(function() {
-            atual++;
-            atualizarProgresso(atual, totalLeads);
-            
-            if (atual >= totalLeads) {
-                clearInterval(intervalo);
-                setTimeout(function() {
-                    $('#progressContainer').addClass('d-none');
-                    alert('Envio concluído com sucesso!');
-                }, 1000);
-            }
-        }, 500);
-        
-        // Submete o formulário
-        this.submit();
-    }
-});
+
 
 function iniciarMonitoramentoProgresso() {
-    // Mostra o container de progresso
+    // Mostra o container
     $('#progressContainer').removeClass('d-none');
-    
+
     // Inicia o monitoramento
     verificarProgressoFila();
-    const progressInterval = setInterval(verificarProgressoFila, 2000); // Verifica a cada 2 segundos
+    const progressInterval = setInterval(verificarProgressoFila, 2000); // Verifica a cada 2s
 
     function verificarProgressoFila() {
-        fetch('check_queue_status.php')
+        fetch('check_queue_status.php') //  Arquivo que verifica
             .then(response => response.json())
             .then(data => {
-                // Atualiza a barra de progresso
+                // Atualiza a barra
                 const progressBar = document.getElementById('progressBar');
                 const progressText = document.getElementById('progressText');
                 const currentMessage = document.getElementById('currentMessage');
                 const totalMessages = document.getElementById('totalMessages');
-                
+
                 progressBar.style.width = data.progress + '%';
                 progressText.textContent = data.progress + '%';
                 currentMessage.textContent = data.sent;
                 totalMessages.textContent = (data.sent + data.pending + data.failed);
 
-                // Se não houver mais mensagens pendentes, para o monitoramento
+                // Se não houver mais mensagens, para o monitoramento
                 if (data.status === 'completed') {
                     clearInterval(progressInterval);
                     setTimeout(() => {
@@ -1386,7 +1429,7 @@ function iniciarMonitoramentoProgresso() {
             .catch(error => {
                 console.error('Erro ao verificar progresso:', error);
             });
-    } 
+    }
 }
 
 </script>

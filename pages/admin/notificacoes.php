@@ -654,6 +654,30 @@ $(document).ready(function() {
     // Enviar formulário corretamente
     $(this).off('submit').submit();
 });
+
+// Exportação Excel
+$('#exportarExcel').click(function() {
+    const filtros = {
+        tipo: $('#filtroTipo').val(),
+        data_inicio: $('#dataInicio').val(),
+        data_fim: $('#dataFim').val(),
+        formato: 'excel'
+    };
+    
+    window.location.href = '../ajax/export_notifications.php?' + $.param(filtros);
+});
+
+// Exportação PDF
+$('#exportarPDF').click(function() {
+    const filtros = {
+        tipo: $('#filtroTipo').val(),
+        data_inicio: $('#dataInicio').val(),
+        data_fim: $('#dataFim').val(),
+        formato: 'pdf'
+    };
+    
+    window.location.href = '../ajax/export_notifications.php?' + $.param(filtros);
+});
 </script>
 </body>
 </html>
