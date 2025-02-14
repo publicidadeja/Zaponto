@@ -6,8 +6,6 @@ include '../../includes/admin-auth.php';
 
 require_once '../../vendor/autoload.php';
 
-require_once '../../logs/logger.php';
-
 
 // Verificar se é admin
 redirecionarSeNaoAdmin();
@@ -46,141 +44,87 @@ try {
 // Processar o envio de nova notificação
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        // Inicia a transação
         $pdo->beginTransaction();
         
-        // Validação e sanitização dos dados recebidos
-        $titulo = trim(filter_input(INPUT_POST, 'titulo', FILTER_SANITIZE_STRING));
-        $mensagem = trim(filter_input(INPUT_POST, 'mensagem', FILTER_SANITIZE_STRING));
-        $tipo = filter_input(INPUT_POST, 'tipo', FILTER_SANITIZE_STRING);
-        $segmentacao = filter_input(INPUT_POST, 'segmentacao', FILTER_SANITIZE_STRING);
-        $tipoEnvio = filter_input(INPUT_POST, 'tipo_envio', FILTER_SANITIZE_STRING);
+        $titulo = trim($_POST['titulo']);
+        $mensagem = trim($_POST['mensagem']);
+        $tipo = $_POST['tipo'];
+        $segmentacao = $_POST['segmentacao'];
+        $tipoEnvio = $_POST['tipo_envio'];
         
         // Validações básicas
         if (empty($titulo) || empty($mensagem)) {
-            throw new Exception('Título e mensagem são obrigatórios');
+            throw new Exception("Título e mensagem são obrigatórios");
         }
 
-        // Prepara a query base para inserção da notificação
-        $stmt = $pdo->prepare("
-    INSERT INTO notificacoes (
-        titulo, 
-        mensagem, 
-        tipo, 
-        data_criacao, 
-        status,
-        tipo_envio
-    ) VALUES (
-        :titulo, 
-        :mensagem, 
-        :tipo, 
-        NOW(), 
-        :status,
-        :tipo_envio
-    )
-");
-
-        // Define o status inicial
-        $status = ($tipoEnvio === 'agendado') ? 'agendado' : 'enviado';
-
-        // Executa a inserção da notificação
-        $stmt->execute([
-            ':titulo' => $titulo,
-            ':mensagem' => $mensagem,
-            ':tipo' => $tipo,
-            ':status' => $status,
-            ':tipo_envio' => $tipoEnvio
-        ]);
-
-        $notificacaoId = $pdo->lastInsertId();
-
-        // Processa o agendamento se necessário
         if ($tipoEnvio === 'agendado') {
-            $dataAgendamento = filter_input(INPUT_POST, 'data_agendamento', FILTER_SANITIZE_STRING);
+            $dataAgendamento = $_POST['data_agendamento'];
+            $dataAtual = date('Y-m-d H:i:s');
             
-            if (empty($dataAgendamento)) {
-                throw new Exception('Data de agendamento é obrigatória');
+            if (strtotime($dataAgendamento) <= strtotime($dataAtual)) {
+                throw new Exception("Data de agendamento deve ser futura");
+            }
+        
+
+            // Inserir na tabela de notificações agendadas
+            $stmt = $pdo->prepare("
+                INSERT INTO notificacoes_agendadas 
+                (titulo, mensagem, tipo, data_agendamento, segmentacao, status) 
+                VALUES (?, ?, ?, ?, ?, 'pendente')
+            ");
+            $stmt->execute([$titulo, $mensagem, $tipo, $dataAgendamento, $segmentacao]);
+            
+            $_SESSION['sucesso'] = "Notificação agendada com sucesso para " . date('d/m/Y H:i', strtotime($dataAgendamento));
+        
+        } else {
+            // Envio imediato
+            // Buscar usuários baseado na segmentação
+            $query = "SELECT id FROM usuarios WHERE status = 'ativo'";
+            
+            if ($segmentacao === 'plano_ativo') {
+                $query .= " AND EXISTS (
+                    SELECT 1 FROM assinaturas 
+                    WHERE usuario_id = usuarios.id 
+                    AND status = 'ativo'
+                )";
+            } elseif ($segmentacao === 'plano_vencendo') {
+                $query .= " AND EXISTS (
+                    SELECT 1 FROM assinaturas 
+                    WHERE usuario_id = usuarios.id 
+                    AND status = 'ativo' 
+                    AND data_fim <= DATE_ADD(NOW(), INTERVAL 5 DAY)
+                )";
+            }
+            
+            $stmtUsers = $pdo->query($query);
+            $usuarios = $stmtUsers->fetchAll(PDO::FETCH_COLUMN);
+            
+            if (empty($usuarios)) {
+                throw new Exception("Nenhum usuário encontrado para os critérios selecionados");
             }
 
-            $stmtAgendamento = $pdo->prepare("
-                INSERT INTO agendamentos (
-                    notificacao_id,
-                    data_agendamento,
-                    status
-                ) VALUES (
-                    :notificacao_id,
-                    :data_agendamento,
-                    'pendente'
-                )
-            ");
-
-            $stmtAgendamento->execute([
-                ':notificacao_id' => $notificacaoId,
-                ':data_agendamento' => $dataAgendamento
-            ]);
+            // Criar notificação para cada usuário
+            foreach ($usuarios as $usuario_id) {
+                $stmt = $pdo->prepare("
+                    INSERT INTO notificacoes 
+                    (usuario_id, tipo, titulo, mensagem, data_criacao, lida) 
+                    VALUES (?, ?, ?, ?, NOW(), 0)
+                ");
+                $stmt->execute([$usuario_id, $tipo, $titulo, $mensagem]);
+            }
+            
+            $_SESSION['sucesso'] = "Notificação enviada com sucesso para " . count($usuarios) . " usuários";
         }
-
-        // Processa a segmentação de usuários
-        $queryUsuarios = "SELECT id FROM usuarios WHERE 1=1";
         
-        if ($segmentacao === 'ativos') {
-            $queryUsuarios .= " AND status = 'ativo'";
-        } elseif ($segmentacao === 'inativos') {
-            $queryUsuarios .= " AND status = 'inativo'";
-        }
-
-        $usuarios = $pdo->query($queryUsuarios)->fetchAll(PDO::FETCH_COLUMN);
-
-        // Insere as relações usuário-notificação
-        $stmtRelacao = $pdo->prepare("
-            INSERT INTO usuario_notificacao (
-                usuario_id,
-                notificacao_id,
-                status,
-                data_envio
-            ) VALUES (
-                :usuario_id,
-                :notificacao_id,
-                :status,
-                :data_envio
-            )
-        ");
-
-        foreach ($usuarios as $usuarioId) {
-            $stmtRelacao->execute([
-                ':usuario_id' => $usuarioId,
-                ':notificacao_id' => $notificacaoId,
-                ':status' => 'pendente',
-                ':data_envio' => ($tipoEnvio === 'imediato') ? date('Y-m-d H:i:s') : null
-            ]);
-        }
-
-        // Commit da transação
         $pdo->commit();
         
-        // Define mensagem de sucesso
-        $_SESSION['sucesso'] = "Notificação " . 
-            ($tipoEnvio === 'agendado' ? 'agendada' : 'enviada') . 
-            " com sucesso!";
-
-        // Redireciona após sucesso
-        header('Location: notificacoes.php');
-        exit;
-
     } catch (Exception $e) {
-        // Rollback em caso de erro
         $pdo->rollBack();
-        
-        // Log do erro
-        error_log("Erro ao processar notificação: " . $e->getMessage());
-        
-        // Define mensagem de erro
         $_SESSION['erro'] = "Erro ao processar notificação: " . $e->getMessage();
-        
-        // Redireciona em caso de erro
-        header('Location: notificacoes.php');
-        exit;
     }
+    
+    header('Location: notificacoes.php');
+    exit;
 }
 
 // Adicionar antes da query de busca de notificações
@@ -210,23 +154,23 @@ if ($dataFim) {
 // Buscar histórico de notificações
 try {
     $query = "
-SELECT 
-    n.id,
-    n.tipo,
-    n.titulo,
-    n.mensagem,
-    n.data_criacao,
-    n.excluida,
-    COUNT(DISTINCT un.usuario_id) as total_usuarios,
-    SUM(CASE WHEN un.status = 'lida' THEN 1 ELSE 0 END) as total_lidas,
-    COALESCE(ROUND(SUM(CASE WHEN un.status = 'lida' THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(DISTINCT un.usuario_id), 0), 2), 0) as taxa_leitura,
-    MAX(un.data_leitura) as ultima_leitura
-FROM notificacoes n
-LEFT JOIN usuario_notificacao un ON n.id = un.notificacao_id
-WHERE n.excluida = 0
-" . ($whereConditions ? " AND " . implode(" AND ", $whereConditions) : "") . "
-GROUP BY n.id, n.tipo, n.titulo, n.mensagem, n.data_criacao, n.excluida
-ORDER BY n.data_criacao DESC
+    SELECT 
+        n.id,
+        n.tipo,
+        n.titulo,
+        n.mensagem,
+        n.data_criacao,
+        COUNT(DISTINCT n.usuario_id) as total_usuarios,
+        COUNT(CASE WHEN n.lida = 1 THEN 1 END) as total_lidas,
+        ROUND((COUNT(CASE WHEN n.lida = 1 THEN 1 END) * 100.0 / COUNT(*)), 2) as taxa_leitura,
+        MAX(n.data_leitura) as ultima_leitura
+    FROM notificacoes n
+    WHERE 1=1
+    " . ($filtroTipo ? " AND n.tipo = :tipo" : "") . "
+    " . ($dataInicio ? " AND n.data_criacao >= :data_inicio" : "") . "
+    " . ($dataFim ? " AND n.data_criacao <= :data_fim" : "") . "
+    GROUP BY n.id, n.tipo, n.titulo, n.mensagem, n.data_criacao
+    ORDER BY n.data_criacao DESC
 ";
     
     $stmt = $pdo->prepare($query);
@@ -449,6 +393,21 @@ ORDER BY n.data_criacao DESC
         <i class="fas fa-file-pdf me-2"></i>Exportar PDF
     </button>
 </div>
+
+<div class="modal-body">
+    <div class="mb-3">
+        <label class="form-label">Agendar Envio</label>
+        <input type="datetime-local" name="data_agendamento" class="form-control">
+    </div>
+    
+    <div class="mb-3">
+        <label class="form-label">Segmentação de Usuários</label>
+        <select name="segmentacao" class="form-select">
+            <option value="todos">Todos os Usuários</option>
+            <option value="plano_ativo">Apenas Planos Ativos</option>
+            <option value="plano_vencendo">Planos Próximos ao Vencimento</option>
+        </select>
+    </div>
     
     <div class="mb-3">
         <label class="form-label">Preview da Notificação</label>
@@ -457,84 +416,50 @@ ORDER BY n.data_criacao DESC
 </div>
             
             <!-- Notifications Table -->
-<div class="card">
-    <div class="card-body">
-        <div class="table-responsive">
-        <table class="table" id="notificacoesTable">
-    <thead>
-        <tr>
-            <th>Data</th>
-            <th>Tipo</th>
-            <th>Título</th>
-            <th>Mensagem</th>
-            <th>Status</th>
-            <th>Ações</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php foreach ($notificacoes as $notif): ?>
-            <tr>
-                <td><?php echo date('d/m/Y H:i', strtotime($notif['data_criacao'])); ?></td>
-                <td>
-    <span class="badge bg-<?php 
-        echo $notif['status'] === 'agendado' ? 'warning' : 
-            ($notif['status'] === 'enviado' ? 'success' : 'secondary'); 
-    ?>">
-        <?php echo ucfirst($notif['status']); ?>
-    </span>
-</td>
-                <td><?php echo htmlspecialchars($notif['titulo']); ?></td>
-                <td><?php echo htmlspecialchars($notif['mensagem']); ?></td>
-                <td>
-                <span class="badge bg-<?php echo $notif['excluida'] ? 'danger' : 'success'; ?>">
-        <?php echo $notif['excluida'] ? 'Excluída' : 'Ativa'; ?>
-    </span>
-</td>
-                <td>
-                <button class="btn btn-sm btn-danger excluir-notificacao" 
-            data-id="<?php echo $notif['id']; ?>"
-            <?php echo $notif['excluida'] ? 'disabled' : ''; ?>>
-        <i class="fas fa-trash"></i> Excluir
-    </button>
-                </td>
-            </tr>
-        <?php endforeach; ?>
-    </tbody>
-</table>
-                <tbody>
-                    <?php foreach ($notificacoes as $notif): ?>
-                        <tr>
-                            <td><?php echo date('d/m/Y H:i', strtotime($notif['data_criacao'])); ?></td>
-                            <td>
-                                <span class="notification-type type-<?php echo $notif['tipo']; ?>">
-                                    <?php echo ucfirst($notif['tipo']); ?>
-                                </span>
-                            </td>
-                            <td><?php echo htmlspecialchars($notif['titulo']); ?></td>
-                            <td><?php echo htmlspecialchars($notif['mensagem']); ?></td>
-                            <td>
-                                <span class="badge bg-primary">
-                                    <?php echo $notif['total_usuarios']; ?>
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge bg-success">
-                                    <?php echo $notif['total_lidas']; ?>
-                                </span>
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-danger excluir-notificacao" 
-                                        data-id="<?php echo $notif['id']; ?>">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table" id="notificacoesTable">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Tipo</th>
+                                    <th>Título</th>
+                                    <th>Mensagem</th>
+                                    <th>Usuários</th>
+                                    <th>Lidas</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($notificacoes as $notif): ?>
+                                    <tr>
+                                        <td><?php echo date('d/m/Y H:i', strtotime($notif['data_criacao'])); ?></td>
+                                        <td>
+                                            <span class="notification-type type-<?php echo $notif['tipo']; ?>">
+                                                <?php echo ucfirst($notif['tipo']); ?>
+                                            </span>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($notif['titulo']); ?></td>
+                                        <td><?php echo htmlspecialchars($notif['mensagem']); ?></td>
+                                        <td>
+                                            <span class="badge bg-primary">
+                                                <?php echo $notif['total_usuarios']; ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-success">
+                                                <?php echo $notif['total_lidas']; ?>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-</div>
 
     
     <!-- Modal Nova Notificação -->
@@ -549,6 +474,7 @@ ORDER BY n.data_criacao DESC
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-md-6">
+                            <!-- Campos básicos -->
                             <div class="mb-3">
                                 <label class="form-label">Tipo da Notificação</label>
                                 <select name="tipo" class="form-select" required>
@@ -571,8 +497,9 @@ ORDER BY n.data_criacao DESC
                         </div>
                         
                         <div class="col-md-6">
+                            <!-- Opções de agendamento -->
                             <div class="mb-3">
-                                <label class="form-label">Agendamento</label>
+                                <label class="form-label">Tipo de Envio</label>
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="radio" name="tipo_envio" value="imediato" id="envioImediato" checked>
                                     <label class="form-check-label" for="envioImediato">
@@ -586,10 +513,11 @@ ORDER BY n.data_criacao DESC
                                     </label>
                                 </div>
                                 <div id="campoDataAgendamento" class="mt-2 d-none">
-                                    <input type="datetime-local" name="data_agendamento" class="form-control flatpickr">
+                                    <input type="datetime-local" name="data_agendamento" class="form-control">
                                 </div>
                             </div>
                             
+                            <!-- Segmentação -->
                             <div class="mb-3">
                                 <label class="form-label">Segmentação de Usuários</label>
                                 <select name="segmentacao" class="form-select">
@@ -597,11 +525,6 @@ ORDER BY n.data_criacao DESC
                                     <option value="plano_ativo">Apenas Planos Ativos</option>
                                     <option value="plano_vencendo">Planos Próximos ao Vencimento</option>
                                 </select>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Preview da Notificação</label>
-                                <div class="preview-box p-3 border rounded bg-light"></div>
                             </div>
                         </div>
                     </div>
@@ -772,37 +695,6 @@ function validarSegmentacao($pdo, $segmentacao) {
     }
 }
 
-// excluir notificação
-function excluirNotificacao($pdo, $notificacao_id) {
-    try {
-        $pdo->beginTransaction();
-        
-        // Atualiza o status da notificação
-        $stmt = $pdo->prepare("
-            UPDATE notificacoes 
-            SET excluida = 1 
-            WHERE id = ?
-        ");
-        $stmt->execute([$notificacao_id]);
-        
-        // Remove notificações pendentes
-        $stmt = $pdo->prepare("
-            DELETE FROM usuario_notificacao 
-            WHERE notificacao_id = ? 
-            AND status = 'pendente'
-        ");
-        $stmt->execute([$notificacao_id]);
-        
-        $pdo->commit();
-        return true;
-        
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        error_log("Erro ao excluir notificação: " . $e->getMessage());
-        return false;
-    }
-}
-
 function validarFiltros($filtros) {
     $filtrosValidos = [];
     
@@ -828,130 +720,5 @@ function validarFiltros($filtros) {
     return $filtrosValidos;
 }
 </script>
-
-<script>
-$(document).ready(function() {
-    // Inicializar Flatpickr para o calendário
-    flatpickr(".flatpickr", {
-        enableTime: true,
-        dateFormat: "Y-m-d H:i",
-        minDate: "today",
-        time_24hr: true
-    });
-
-    // Controle de exibição do campo de agendamento
-    $('input[name="tipo_envio"]').change(function() {
-        if ($(this).val() === 'agendado') {
-            $('#campoDataAgendamento').removeClass('d-none');
-            $('input[name="data_agendamento"]').prop('required', true);
-        } else {
-            $('#campoDataAgendamento').addClass('d-none');
-            $('input[name="data_agendamento"]').prop('required', false);
-        }
-    });
-
-    // Excluir notificação
-    $('.excluir-notificacao').click(function() {
-    const button = $(this);
-    const notificacaoId = button.data('id');
-    const row = button.closest('tr');
-    
-    if (confirm('Tem certeza que deseja excluir esta notificação?')) {
-        $.ajax({
-            url: '../../ajax/excluir_notificacao.php',
-            method: 'POST',
-            data: { id: notificacaoId },
-            dataType: 'json',
-            beforeSend: function() {
-                button.prop('disabled', true);
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Atualiza o status na linha ao invés de removê-la
-                    row.find('.badge').removeClass('bg-success').addClass('bg-danger')
-                       .text('Excluída');
-                    button.prop('disabled', true); // Desabilita o botão
-                    
-                    // Opcional: Recarrega a tabela para garantir sincronização
-                    setTimeout(function() {
-                        location.reload();
-                    }, 1000);
-                } else {
-                    button.prop('disabled', false);
-                    alert('Erro ao excluir notificação: ' + (response.error || 'Erro desconhecido'));
-                }
-            },
-            error: function(xhr, status, error) {
-                button.prop('disabled', false);
-                console.error('Erro:', error);
-                alert('Erro ao excluir notificação. Por favor, tente novamente.');
-            }
-        });
-    }
-});
-
-    // Preview em tempo real
-    $('input[name="titulo"], textarea[name="mensagem"]').on('input', function() {
-        const titulo = $('input[name="titulo"]').val();
-        const mensagem = $('textarea[name="mensagem"]').val();
-        $('.preview-box').html(`
-            <h5>${titulo || 'Título da notificação'}</h5>
-            <p>${mensagem || 'Conteúdo da mensagem'}</p>
-        `);
-    });
-});
-</script>
-
-<script>
-$(document).ready(function() {
-    // Função para excluir notificação
-    $('.excluir-notificacao').click(function() {
-        if (!confirm('Tem certeza que deseja excluir esta notificação?')) {
-            return;
-        }
-        
-        const button = $(this);
-        const notificacaoId = button.data('id');
-        
-        $.ajax({
-            url: '../../ajax/excluir_notificacao.php',
-            method: 'POST',
-            data: { id: notificacaoId },
-            dataType: 'json',
-            beforeSend: function() {
-                button.prop('disabled', true);
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Atualiza visual da linha
-                    const row = button.closest('tr');
-                    row.find('.badge').removeClass('bg-success').addClass('bg-danger').text('Excluída');
-                    button.prop('disabled', true);
-                    
-                    // Mostra mensagem de sucesso
-                    alert('Notificação excluída com sucesso!');
-                } else {
-                    alert('Erro ao excluir: ' + response.error);
-                    button.prop('disabled', false);
-                }
-            },
-            error: function() {
-                alert('Erro ao processar a requisição');
-                button.prop('disabled', false);
-            }
-        });
-    });
-});
-</script>
-
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.dataTables.min.css">
-
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </body>
 </html>
