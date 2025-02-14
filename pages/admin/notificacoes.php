@@ -154,23 +154,26 @@ if ($dataFim) {
 // Buscar histórico de notificações
 try {
     $query = "
-    SELECT 
-        n.id,
-        n.tipo,
-        n.titulo,
-        n.mensagem,
-        n.data_criacao,
-        COUNT(DISTINCT n.usuario_id) as total_usuarios,
-        COUNT(CASE WHEN n.lida = 1 THEN 1 END) as total_lidas,
-        ROUND((COUNT(CASE WHEN n.lida = 1 THEN 1 END) * 100.0 / COUNT(*)), 2) as taxa_leitura,
-        MAX(n.data_leitura) as ultima_leitura
-    FROM notificacoes n
-    WHERE 1=1
-    " . ($filtroTipo ? " AND n.tipo = :tipo" : "") . "
-    " . ($dataInicio ? " AND n.data_criacao >= :data_inicio" : "") . "
-    " . ($dataFim ? " AND n.data_criacao <= :data_fim" : "") . "
-    GROUP BY n.id, n.tipo, n.titulo, n.mensagem, n.data_criacao
-    ORDER BY n.data_criacao DESC
+SELECT 
+    n.id,
+    n.tipo,
+    n.titulo,
+    n.mensagem,
+    n.data_criacao,
+    COUNT(DISTINCT n.usuario_id) as total_usuarios,
+    COUNT(CASE WHEN n.lida = 1 THEN 1 END) as total_lidas,
+    ROUND((COUNT(CASE WHEN n.lida = 1 THEN 1 END) * 100.0 / COUNT(*)), 2) as taxa_leitura,
+    MAX(n.data_leitura) as ultima_leitura
+FROM notificacoes n
+WHERE 1=1
+" . ($whereConditions ? " AND " . implode(" AND ", $whereConditions) : "") . "
+AND NOT EXISTS (
+    SELECT 1 
+    FROM notificacoes_excluidas ne 
+    WHERE ne.notificacao_id = n.id
+)
+GROUP BY n.id, n.tipo, n.titulo, n.mensagem, n.data_criacao
+ORDER BY n.data_criacao DESC
 ";
     
     $stmt = $pdo->prepare($query);
@@ -182,8 +185,51 @@ try {
     $notificacoes = [];
 }
 
+function excluirNotificacao($pdo, $id, $admin_id) {
+    try {
+        $pdo->beginTransaction();
+        
+        // Registrar a exclusão
+        $stmt = $pdo->prepare("
+            INSERT INTO notificacoes_excluidas 
+            (notificacao_id, admin_id) 
+            VALUES (?, ?)
+        ");
+        $stmt->execute([$id, $admin_id]);
+        
+        // Excluir notificações dos usuários
+        $stmt = $pdo->prepare("
+            DELETE FROM notificacoes 
+            WHERE id = ?
+        ");
+        $stmt->execute([$id]);
+        
+        $pdo->commit();
+        return true;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+// Processar a exclusão quando solicitada
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['excluir_notificacao'])) {
+    try {
+        $id = (int)$_POST['id'];
+        $admin_id = $_SESSION['admin_id']; // Certifique-se de que você tem o ID do admin na sessão
+        
+        if (excluirNotificacao($pdo, $id, $admin_id)) {
+            $_SESSION['sucesso'] = "Notificação excluída com sucesso";
+        }
+    } catch (Exception $e) {
+        $_SESSION['erro'] = "Erro ao excluir notificação: " . $e->getMessage();
+    }
+    header('Location: notificacoes.php');
+    exit;
+}
 
 ?>
+
 
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -282,6 +328,17 @@ try {
     background: #f8f9fa;
     border-radius: 8px;
 }
+
+.excluir-notificacao {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        border-radius: 0.2rem;
+    }
+    
+    .excluir-notificacao i {
+        margin-right: 0.25rem;
+    }
     </style>
 </head>
 <body>
@@ -394,26 +451,6 @@ try {
     </button>
 </div>
 
-<div class="modal-body">
-    <div class="mb-3">
-        <label class="form-label">Agendar Envio</label>
-        <input type="datetime-local" name="data_agendamento" class="form-control">
-    </div>
-    
-    <div class="mb-3">
-        <label class="form-label">Segmentação de Usuários</label>
-        <select name="segmentacao" class="form-select">
-            <option value="todos">Todos os Usuários</option>
-            <option value="plano_ativo">Apenas Planos Ativos</option>
-            <option value="plano_vencendo">Planos Próximos ao Vencimento</option>
-        </select>
-    </div>
-    
-    <div class="mb-3">
-        <label class="form-label">Preview da Notificação</label>
-        <div class="preview-box p-3 border rounded"></div>
-    </div>
-</div>
             
             <!-- Notifications Table -->
             <div class="card">
@@ -421,14 +458,15 @@ try {
                     <div class="table-responsive">
                         <table class="table" id="notificacoesTable">
                             <thead>
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Tipo</th>
-                                    <th>Título</th>
-                                    <th>Mensagem</th>
-                                    <th>Usuários</th>
-                                    <th>Lidas</th>
-                                </tr>
+                            <tr>
+        <th>Data</th>
+        <th>Tipo</th>
+        <th>Título</th>
+        <th>Mensagem</th>
+        <th>Usuários</th>
+        <th>Lidas</th>
+        <th>Ações</th> 
+    </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($notificacoes as $notif): ?>
@@ -451,6 +489,13 @@ try {
                                                 <?php echo $notif['total_lidas']; ?>
                                             </span>
                                         </td>
+
+                                        <td>
+                <button class="btn btn-danger btn-sm excluir-notificacao" 
+                        data-id="<?php echo $notif['id']; ?>">
+                    <i class="fas fa-trash"></i> Excluir
+                </button>
+            </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -719,6 +764,45 @@ function validarFiltros($filtros) {
     
     return $filtrosValidos;
 }
+</script>
+
+<script>
+$(document).ready(function() {
+    // Manipulador para botão de exclusão
+    $('.excluir-notificacao').click(function() {
+        const id = $(this).data('id');
+        
+        if (confirm('Tem certeza que deseja excluir esta notificação? Esta ação não pode ser desfeita.')) {
+            // Criar formulário dinâmico para envio
+            const form = $('<form>', {
+                'method': 'POST',
+                'action': 'notificacoes.php'
+            });
+            
+            // Adicionar campos ocultos
+            form.append($('<input>', {
+                'type': 'hidden',
+                'name': 'excluir_notificacao',
+                'value': '1'
+            }));
+            
+            form.append($('<input>', {
+                'type': 'hidden',
+                'name': 'id',
+                'value': id
+            }));
+            
+            // Adicionar ao documento e enviar
+            $('body').append(form);
+            form.submit();
+        }
+    });
+
+    // Atualizar tabela após exclusão
+    if ($('.alert-success').length) {
+        $('#notificacoesTable').DataTable().ajax.reload();
+    }
+});
 </script>
 </body>
 </html>
