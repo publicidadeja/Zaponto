@@ -210,21 +210,22 @@ if ($dataFim) {
 // Buscar histórico de notificações
 try {
     $query = "
-    SELECT 
-        n.id,
-        n.tipo,
-        n.titulo,
-        n.mensagem,
-        n.data_criacao,
-        COUNT(DISTINCT n.usuario_id) as total_usuarios,
-        COUNT(CASE WHEN n.lida = 1 THEN 1 END) as total_lidas,
-        ROUND((COUNT(CASE WHEN n.lida = 1 THEN 1 END) * 100.0 / COUNT(*)), 2) as taxa_leitura,
-        MAX(n.data_leitura) as ultima_leitura
-    FROM notificacoes n
-    WHERE n.excluida = 0
-    " . ($whereConditions ? " AND " . implode(" AND ", $whereConditions) : "") . "
-    GROUP BY n.id, n.tipo, n.titulo, n.mensagem, n.data_criacao
-    ORDER BY n.data_criacao DESC
+SELECT 
+    n.id,
+    n.tipo,
+    n.titulo,
+    n.mensagem,
+    n.data_criacao,
+    n.excluida,
+    COUNT(DISTINCT n.usuario_id) as total_usuarios,
+    COUNT(CASE WHEN n.lida = 1 THEN 1 END) as total_lidas,
+    ROUND((COUNT(CASE WHEN n.lida = 1 THEN 1 END) * 100.0 / COUNT(*)), 2) as taxa_leitura,
+    MAX(n.data_leitura) as ultima_leitura
+FROM notificacoes n
+WHERE n.excluida = 0
+" . ($whereConditions ? " AND " . implode(" AND ", $whereConditions) : "") . "
+GROUP BY n.id, n.tipo, n.titulo, n.mensagem, n.data_criacao, n.excluida
+ORDER BY n.data_criacao DESC
 ";
     
     $stmt = $pdo->prepare($query);
@@ -458,18 +459,46 @@ try {
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table" id="notificacoesTable">
-                <thead>
-                    <tr>
-                        <th>Data</th>
-                        <th>Tipo</th>
-                        <th>Título</th>
-                        <th>Mensagem</th>
-                        <th>Usuários</th>
-                        <th>Lidas</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
+        <table class="table" id="notificacoesTable">
+    <thead>
+        <tr>
+            <th>Data</th>
+            <th>Tipo</th>
+            <th>Título</th>
+            <th>Mensagem</th>
+            <th>Status</th>
+            <th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php foreach ($notificacoes as $notif): ?>
+            <tr>
+                <td><?php echo date('d/m/Y H:i', strtotime($notif['data_criacao'])); ?></td>
+                <td>
+                    <span class="badge bg-<?php echo $notif['tipo'] == 'sistema' ? 'primary' : 
+                        ($notif['tipo'] == 'plano' ? 'success' : 
+                        ($notif['tipo'] == 'aviso' ? 'warning' : 'info')); ?>">
+                        <?php echo ucfirst($notif['tipo']); ?>
+                    </span>
+                </td>
+                <td><?php echo htmlspecialchars($notif['titulo']); ?></td>
+                <td><?php echo htmlspecialchars($notif['mensagem']); ?></td>
+                <td>
+                    <span class="badge bg-<?php echo $notif['excluida'] == 1 ? 'danger' : 'success'; ?>">
+                        <?php echo $notif['excluida'] == 1 ? 'Excluída' : 'Ativa'; ?>
+                    </span>
+                </td>
+                <td>
+    <button class="btn btn-sm btn-danger excluir-notificacao" 
+            data-id="<?php echo $notif['id']; ?>"
+            <?php echo isset($notif['excluida']) && $notif['excluida'] == 1 ? 'disabled' : ''; ?>>
+        <i class="fas fa-trash"></i> Excluir
+    </button>
+</td>
+            </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
                 <tbody>
                     <?php foreach ($notificacoes as $notif): ?>
                         <tr>
@@ -789,9 +818,10 @@ $(document).ready(function() {
     });
 
     // Excluir notificação
-    $('.excluir-notificacao').click(function() {
-    const notificacaoId = $(this).data('id');
-    const row = $(this).closest('tr');
+$('.excluir-notificacao').click(function() {
+    const button = $(this);
+    const notificacaoId = button.data('id');
+    const row = button.closest('tr');
     
     if (confirm('Tem certeza que deseja excluir esta notificação?')) {
         $.ajax({
@@ -799,29 +829,24 @@ $(document).ready(function() {
             method: 'POST',
             data: { id: notificacaoId },
             dataType: 'json',
+            beforeSend: function() {
+                button.prop('disabled', true);
+            },
             success: function(response) {
                 if (response.success) {
                     row.fadeOut(400, function() {
-                        row.remove();
+                        $(this).remove();
                     });
                     alert('Notificação excluída com sucesso!');
                 } else {
-                    console.error('Erro na resposta:', response);
+                    button.prop('disabled', false);
                     alert('Erro ao excluir notificação: ' + (response.error || 'Erro desconhecido'));
                 }
             },
             error: function(xhr, status, error) {
-                // Log detalhado do erro
-                console.error('Status:', status);
+                button.prop('disabled', false);
                 console.error('Erro:', error);
-                console.error('Resposta:', xhr.responseText);
-                
-                try {
-                    const response = JSON.parse(xhr.responseText);
-                    alert('Erro ao excluir notificação: ' + (response.error || 'Erro desconhecido'));
-                } catch (e) {
-                    alert('Erro ao processar a requisição. Por favor, verifique o console para mais detalhes.');
-                }
+                alert('Erro ao excluir notificação. Por favor, tente novamente.');
             }
         });
     }
@@ -835,6 +860,48 @@ $(document).ready(function() {
             <h5>${titulo || 'Título da notificação'}</h5>
             <p>${mensagem || 'Conteúdo da mensagem'}</p>
         `);
+    });
+});
+</script>
+
+<script>
+$(document).ready(function() {
+    // Função para excluir notificação
+    $('.excluir-notificacao').click(function() {
+        if (!confirm('Tem certeza que deseja excluir esta notificação?')) {
+            return;
+        }
+        
+        const button = $(this);
+        const notificacaoId = button.data('id');
+        
+        $.ajax({
+            url: '../../ajax/excluir_notificacao.php',
+            method: 'POST',
+            data: { id: notificacaoId },
+            dataType: 'json',
+            beforeSend: function() {
+                button.prop('disabled', true);
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Atualiza visual da linha
+                    const row = button.closest('tr');
+                    row.find('.badge').removeClass('bg-success').addClass('bg-danger').text('Excluída');
+                    button.prop('disabled', true);
+                    
+                    // Mostra mensagem de sucesso
+                    alert('Notificação excluída com sucesso!');
+                } else {
+                    alert('Erro ao excluir: ' + response.error);
+                    button.prop('disabled', false);
+                }
+            },
+            error: function() {
+                alert('Erro ao processar a requisição');
+                button.prop('disabled', false);
+            }
+        });
     });
 });
 </script>
