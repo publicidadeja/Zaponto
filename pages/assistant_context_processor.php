@@ -99,8 +99,8 @@ class AssistantContextProcessor {
             $response = $client->post($this->api_url, [
                 'headers' => [
                     'Content-Type' => 'application/json',
-                    'x-api-key' => $this->api_key,
-                    'anthropic-version' => '2023-06-01'
+                    'anthropic-version' => '2023-06-01',
+                    'x-api-key' => $this->api_key
                 ],
                 'json' => [
                     'model' => 'claude-3-haiku-20240307',
@@ -109,7 +109,8 @@ class AssistantContextProcessor {
                             'role' => 'user',
                             'content' => $prompt_completo
                         ]
-                    ]
+                    ],
+                    'max_tokens' => 1000  // Adicionar este parâmetro
                 ]
             ]);
 

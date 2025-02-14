@@ -362,15 +362,11 @@
     promptInput.value = '';
     autoResizeTextarea(promptInput);
 
-    // Adiciona mensagem do usuário
     addMessage('user', prompt);
-
-    // Adiciona indicador de digitação
     const loadingMessage = addMessage('assistant', '', true);
 
     try {
-        // Alterando o endpoint para o novo processor
-        const response = await fetch('/pages/assistant_context_processor.php', { // <- ALTERAÇÃO AQUI
+        const response = await fetch('/pages/assistant_context_processor.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -378,15 +374,17 @@
             body: JSON.stringify({ prompt: prompt })
         });
 
+        if (!response.ok) {
+            throw new Error('Erro na requisição');
+        }
+
         const data = await response.json();
-        
-        // Remove o indicador de digitação
         loadingMessage.remove();
 
-        if (data.success) {
+        if (data.success && data.content) {
             addMessage('assistant', data.content);
         } else {
-            addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem.');
+            throw new Error(data.error || 'Erro desconhecido');
         }
     } catch (error) {
         console.error('Erro:', error);
@@ -394,6 +392,7 @@
         addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem.');
     } finally {
         isProcessing = false;
+        scrollToBottom();
     }
 }
 
