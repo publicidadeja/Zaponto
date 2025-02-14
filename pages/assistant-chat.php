@@ -353,48 +353,49 @@
 
     // Enviar mensagem
     async function sendMessage() {
-        if (isProcessing) return;
+    if (isProcessing) return;
 
-        const prompt = promptInput.value.trim();
-        if (!prompt) return;
+    const prompt = promptInput.value.trim();
+    if (!prompt) return;
 
-        isProcessing = true;
-        promptInput.value = '';
-        autoResizeTextarea(promptInput);
+    isProcessing = true;
+    promptInput.value = '';
+    autoResizeTextarea(promptInput);
 
-        // Adiciona mensagem do usuário
-        addMessage('user', prompt);
+    // Adiciona mensagem do usuário
+    addMessage('user', prompt);
 
-        // Adiciona indicador de digitação
-        const loadingMessage = addMessage('assistant', '', true);
+    // Adiciona indicador de digitação
+    const loadingMessage = addMessage('assistant', '', true);
 
-        try {
-            const response = await fetch('/pages/claude_proxy.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ prompt: prompt })
-            });
+    try {
+        // Alterando o endpoint para o novo processor
+        const response = await fetch('/pages/assistant_context_processor.php', { // <- ALTERAÇÃO AQUI
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt: prompt })
+        });
 
-            const data = await response.json();
-            
-            // Remove o indicador de digitação
-            loadingMessage.remove();
+        const data = await response.json();
+        
+        // Remove o indicador de digitação
+        loadingMessage.remove();
 
-            if (data.success) {
-                addMessage('assistant', data.content);
-            } else {
-                addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem.');
-            }
-        } catch (error) {
-            console.error('Erro:', error);
-            loadingMessage.remove();
+        if (data.success) {
+            addMessage('assistant', data.content);
+        } else {
             addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem.');
-        } finally {
-            isProcessing = false;
         }
+    } catch (error) {
+        console.error('Erro:', error);
+        loadingMessage.remove();
+        addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem.');
+    } finally {
+        isProcessing = false;
     }
+}
 
     // Event listeners para envio
     sendBtn.addEventListener('click', sendMessage);
