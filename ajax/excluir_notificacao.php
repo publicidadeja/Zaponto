@@ -2,6 +2,7 @@
 session_start();
 require_once '../includes/db.php';
 require_once '../includes/admin-auth.php';
+require_once '../includes/notifications.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -12,33 +13,16 @@ try {
 
     $id = (int)$_POST['id'];
     
-    $pdo->beginTransaction();
-    
-    // Marcar notificação como excluída
-    $stmt = $pdo->prepare("UPDATE notificacoes SET excluida = 1 WHERE id = ?");
-    if (!$stmt->execute([$id])) {
+    if (excluirNotificacao($pdo, $id)) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Notificação excluída com sucesso'
+        ]);
+    } else {
         throw new Exception('Erro ao excluir notificação');
     }
 
-    // Remover notificações pendentes
-    $stmt = $pdo->prepare("
-        DELETE FROM usuario_notificacao 
-        WHERE notificacao_id = ? AND status = 'pendente'
-    ");
-    $stmt->execute([$id]);
-    
-    $pdo->commit();
-
-    echo json_encode([
-        'success' => true,
-        'message' => 'Notificação excluída com sucesso'
-    ]);
-
 } catch (Exception $e) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
-    
     http_response_code(400);
     echo json_encode([
         'success' => false,

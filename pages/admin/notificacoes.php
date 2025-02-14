@@ -63,22 +63,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Prepara a query base para inserção da notificação
         $stmt = $pdo->prepare("
-            INSERT INTO notificacoes (
-                titulo, 
-                mensagem, 
-                tipo, 
-                data_criacao, 
-                status,
-                tipo_envio
-            ) VALUES (
-                :titulo, 
-                :mensagem, 
-                :tipo, 
-                NOW(), 
-                :status,
-                :tipo_envio
-            )
-        ");
+    INSERT INTO notificacoes (
+        titulo, 
+        mensagem, 
+        tipo, 
+        data_criacao, 
+        status,
+        tipo_envio
+    ) VALUES (
+        :titulo, 
+        :mensagem, 
+        :tipo, 
+        NOW(), 
+        :status,
+        :tipo_envio
+    )
+");
 
         // Define o status inicial
         $status = ($tipoEnvio === 'agendado') ? 'agendado' : 'enviado';
@@ -210,22 +210,24 @@ if ($dataFim) {
 // Buscar histórico de notificações
 try {
     $query = "
-    SELECT 
-        n.id,
-        n.tipo,
-        n.titulo,
-        n.mensagem,
-        n.data_criacao,
-        n.excluida,
-        0 as total_usuarios,
-        0 as total_lidas,
-        0 as taxa_leitura,
-        NULL as ultima_leitura
-    FROM notificacoes n
-    WHERE n.excluida = 0
-    " . ($whereConditions ? " AND " . implode(" AND ", $whereConditions) : "") . "
-    ORDER BY n.data_criacao DESC
-    ";
+SELECT 
+    n.id,
+    n.tipo,
+    n.titulo,
+    n.mensagem,
+    n.data_criacao,
+    n.excluida,
+    COUNT(DISTINCT un.usuario_id) as total_usuarios,
+    SUM(CASE WHEN un.status = 'lida' THEN 1 ELSE 0 END) as total_lidas,
+    COALESCE(ROUND(SUM(CASE WHEN un.status = 'lida' THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(DISTINCT un.usuario_id), 0), 2), 0) as taxa_leitura,
+    MAX(un.data_leitura) as ultima_leitura
+FROM notificacoes n
+LEFT JOIN usuario_notificacao un ON n.id = un.notificacao_id
+WHERE n.excluida = 0
+" . ($whereConditions ? " AND " . implode(" AND ", $whereConditions) : "") . "
+GROUP BY n.id, n.tipo, n.titulo, n.mensagem, n.data_criacao, n.excluida
+ORDER BY n.data_criacao DESC
+";
     
     $stmt = $pdo->prepare($query);
     $stmt->execute();
@@ -474,25 +476,26 @@ try {
             <tr>
                 <td><?php echo date('d/m/Y H:i', strtotime($notif['data_criacao'])); ?></td>
                 <td>
-                    <span class="badge bg-<?php echo $notif['tipo'] == 'sistema' ? 'primary' : 
-                        ($notif['tipo'] == 'plano' ? 'success' : 
-                        ($notif['tipo'] == 'aviso' ? 'warning' : 'info')); ?>">
-                        <?php echo ucfirst($notif['tipo']); ?>
-                    </span>
-                </td>
+    <span class="badge bg-<?php 
+        echo $notif['status'] === 'agendado' ? 'warning' : 
+            ($notif['status'] === 'enviado' ? 'success' : 'secondary'); 
+    ?>">
+        <?php echo ucfirst($notif['status']); ?>
+    </span>
+</td>
                 <td><?php echo htmlspecialchars($notif['titulo']); ?></td>
                 <td><?php echo htmlspecialchars($notif['mensagem']); ?></td>
                 <td>
-                    <span class="badge bg-<?php echo (int)$notif['excluida'] === 1 ? 'danger' : 'success'; ?>">
-                        <?php echo (int)$notif['excluida'] === 1 ? 'Excluída' : 'Ativa'; ?>
-                    </span>
-                </td>
+                <span class="badge bg-<?php echo $notif['excluida'] ? 'danger' : 'success'; ?>">
+        <?php echo $notif['excluida'] ? 'Excluída' : 'Ativa'; ?>
+    </span>
+</td>
                 <td>
-                    <button class="btn btn-sm btn-danger excluir-notificacao" 
-                            data-id="<?php echo $notif['id']; ?>"
-                            <?php echo (int)$notif['excluida'] === 1 ? 'disabled' : ''; ?>>
-                        <i class="fas fa-trash"></i> Excluir
-                    </button>
+                <button class="btn btn-sm btn-danger excluir-notificacao" 
+            data-id="<?php echo $notif['id']; ?>"
+            <?php echo $notif['excluida'] ? 'disabled' : ''; ?>>
+        <i class="fas fa-trash"></i> Excluir
+    </button>
                 </td>
             </tr>
         <?php endforeach; ?>
@@ -769,6 +772,37 @@ function validarSegmentacao($pdo, $segmentacao) {
     }
 }
 
+// excluir notificação
+function excluirNotificacao($pdo, $notificacao_id) {
+    try {
+        $pdo->beginTransaction();
+        
+        // Atualiza o status da notificação
+        $stmt = $pdo->prepare("
+            UPDATE notificacoes 
+            SET excluida = 1 
+            WHERE id = ?
+        ");
+        $stmt->execute([$notificacao_id]);
+        
+        // Remove notificações pendentes
+        $stmt = $pdo->prepare("
+            DELETE FROM usuario_notificacao 
+            WHERE notificacao_id = ? 
+            AND status = 'pendente'
+        ");
+        $stmt->execute([$notificacao_id]);
+        
+        $pdo->commit();
+        return true;
+        
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        error_log("Erro ao excluir notificação: " . $e->getMessage());
+        return false;
+    }
+}
+
 function validarFiltros($filtros) {
     $filtrosValidos = [];
     
@@ -817,7 +851,7 @@ $(document).ready(function() {
     });
 
     // Excluir notificação
-$('.excluir-notificacao').click(function() {
+    $('.excluir-notificacao').click(function() {
     const button = $(this);
     const notificacaoId = button.data('id');
     const row = button.closest('tr');
@@ -833,10 +867,15 @@ $('.excluir-notificacao').click(function() {
             },
             success: function(response) {
                 if (response.success) {
-                    row.fadeOut(400, function() {
-                        $(this).remove();
-                    });
-                    alert('Notificação excluída com sucesso!');
+                    // Atualiza o status na linha ao invés de removê-la
+                    row.find('.badge').removeClass('bg-success').addClass('bg-danger')
+                       .text('Excluída');
+                    button.prop('disabled', true); // Desabilita o botão
+                    
+                    // Opcional: Recarrega a tabela para garantir sincronização
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1000);
                 } else {
                     button.prop('disabled', false);
                     alert('Erro ao excluir notificação: ' + (response.error || 'Erro desconhecido'));
