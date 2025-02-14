@@ -728,8 +728,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <p><strong>Importante:</strong></p>
                     <ul>
                         <li>Certifique-se de que os leads selecionados deram consentimento para receber mensagens.</li>
-                        <li>O envio em massa pode levar algum tempo, dependendo do número de leads e da velocidade da sua conexão.</li>
-                        <li>Não feche esta janela ou interrompa o processo de envio até que ele seja concluído.</li>
+                        <li>O envio em massa pode levar algum tempo, dependendo do número de leads.</li>
+                        <li>Você pode continuar trabalhando com o Zaponto em outras telas normalmente durante o envio.</li>
                     </ul>
                     <p>Deseja prosseguir com o envio?</p>
                 </div>

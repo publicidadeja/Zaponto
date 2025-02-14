@@ -168,11 +168,14 @@ $stmt = $pdo->prepare("SELECT COUNT(*) AS total_leads FROM leads_enviados WHERE 
 $stmt->execute([$_SESSION['usuario_id']]);
 $total_leads = $stmt->fetch()['total_leads'];
 
-$stmt = $pdo->prepare("SELECT COUNT(*) AS total_envios_massa FROM envios_em_massa WHERE usuario_id = ?");
+// For total envios em massa
+$stmt = $pdo->prepare("SELECT COUNT(*) AS total_envios_massa FROM fila_mensagens WHERE usuario_id = ? AND status = 'ENVIADO'");
 $stmt->execute([$_SESSION['usuario_id']]);
 $total_envios_massa = $stmt->fetch()['total_envios_massa'];
 
-$stmt = $pdo->prepare("SELECT MAX(data_envio) AS ultimo_envio FROM envios_em_massa WHERE usuario_id = ?");
+
+// For último envio
+$stmt = $pdo->prepare("SELECT MAX(created_at) AS ultimo_envio FROM fila_mensagens WHERE usuario_id = ? AND status = 'ENVIADO'");
 $stmt->execute([$_SESSION['usuario_id']]);
 $ultimo_envio = $stmt->fetch()['ultimo_envio'];
 
@@ -203,22 +206,34 @@ include '../includes/header.php';
             </div>
 
             <div class="col-12 col-md-6 col-lg-3">
-                <div class="metric-card">
-                    <h3>Envios em Massa</h3>
-                    <div class="metric-value"><?php echo number_format($total_envios_massa); ?></div>
-                    <p class="metric-description"><i class="fas fa-paper-plane"></i> Campanhas realizadas</p>
-                </div>
-            </div>
+    <div class="metric-card">
+        <h3>Envios em Massa</h3>
+        <div class="metric-value">
+            <?php echo number_format($total_envios_massa); ?>
+        </div>
+        <p class="metric-description">
+            <i class="fas fa-paper-plane"></i> Campanhas realizadas
+        </p>
+    </div>
+</div>
 
-            <div class="col-12 col-md-6 col-lg-3">
-                <div class="metric-card">
-                    <h3>Último Envio</h3>
-                    <div class="metric-value">
-                        <?php echo $ultimo_envio ? date('d/m/Y H:i', strtotime($ultimo_envio)) : '-'; ?>
-                    </div>
-                    <p class="metric-description"><i class="fas fa-clock"></i> Data do último envio</p>
-                </div>
-            </div>
+<div class="col-12 col-md-6 col-lg-3">
+    <div class="metric-card">
+        <h3>Último Envio</h3>
+        <div class="metric-value">
+            <?php 
+            if ($ultimo_envio) {
+                echo date('d/m/Y H:i', strtotime($ultimo_envio));
+            } else {
+                echo '-';
+            }
+            ?>
+        </div>
+        <p class="metric-description">
+            <i class="fas fa-clock"></i> Data do último envio
+        </p>
+    </div>
+</div>
 
             <div class="col-12 col-md-6 col-lg-3">
                 <div class="metric-card">
@@ -261,6 +276,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+
+function debug_query($pdo) {
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as total, MAX(data_envio) as ultimo_envio 
+        FROM fila_mensagens 
+        WHERE usuario_id = ? 
+        AND status = 'ENVIADO'
+    ");
+    $stmt->execute([$_SESSION['usuario_id']]);
+    $debug = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    error_log("Debug Dashboard - Total Envios: " . $debug['total'] . " - Último Envio: " . $debug['ultimo_envio']);
+}
+
+// Chame a função
+debug_query($pdo);
 </script>
 <?php endif; ?>
 
