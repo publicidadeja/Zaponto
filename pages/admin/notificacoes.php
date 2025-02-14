@@ -210,23 +210,22 @@ if ($dataFim) {
 // Buscar histórico de notificações
 try {
     $query = "
-SELECT 
-    n.id,
-    n.tipo,
-    n.titulo,
-    n.mensagem,
-    n.data_criacao,
-    n.excluida,
-    COUNT(DISTINCT n.usuario_id) as total_usuarios,
-    COUNT(CASE WHEN n.lida = 1 THEN 1 END) as total_lidas,
-    ROUND((COUNT(CASE WHEN n.lida = 1 THEN 1 END) * 100.0 / COUNT(*)), 2) as taxa_leitura,
-    MAX(n.data_leitura) as ultima_leitura
-FROM notificacoes n
-WHERE n.excluida = 0
-" . ($whereConditions ? " AND " . implode(" AND ", $whereConditions) : "") . "
-GROUP BY n.id, n.tipo, n.titulo, n.mensagem, n.data_criacao, n.excluida
-ORDER BY n.data_criacao DESC
-";
+    SELECT 
+        n.id,
+        n.tipo,
+        n.titulo,
+        n.mensagem,
+        n.data_criacao,
+        n.excluida,
+        0 as total_usuarios,
+        0 as total_lidas,
+        0 as taxa_leitura,
+        NULL as ultima_leitura
+    FROM notificacoes n
+    WHERE n.excluida = 0
+    " . ($whereConditions ? " AND " . implode(" AND ", $whereConditions) : "") . "
+    ORDER BY n.data_criacao DESC
+    ";
     
     $stmt = $pdo->prepare($query);
     $stmt->execute();
@@ -484,17 +483,17 @@ ORDER BY n.data_criacao DESC
                 <td><?php echo htmlspecialchars($notif['titulo']); ?></td>
                 <td><?php echo htmlspecialchars($notif['mensagem']); ?></td>
                 <td>
-                    <span class="badge bg-<?php echo $notif['excluida'] == 1 ? 'danger' : 'success'; ?>">
-                        <?php echo $notif['excluida'] == 1 ? 'Excluída' : 'Ativa'; ?>
+                    <span class="badge bg-<?php echo (int)$notif['excluida'] === 1 ? 'danger' : 'success'; ?>">
+                        <?php echo (int)$notif['excluida'] === 1 ? 'Excluída' : 'Ativa'; ?>
                     </span>
                 </td>
                 <td>
-    <button class="btn btn-sm btn-danger excluir-notificacao" 
-            data-id="<?php echo $notif['id']; ?>"
-            <?php echo isset($notif['excluida']) && $notif['excluida'] == 1 ? 'disabled' : ''; ?>>
-        <i class="fas fa-trash"></i> Excluir
-    </button>
-</td>
+                    <button class="btn btn-sm btn-danger excluir-notificacao" 
+                            data-id="<?php echo $notif['id']; ?>"
+                            <?php echo (int)$notif['excluida'] === 1 ? 'disabled' : ''; ?>>
+                        <i class="fas fa-trash"></i> Excluir
+                    </button>
+                </td>
             </tr>
         <?php endforeach; ?>
     </tbody>

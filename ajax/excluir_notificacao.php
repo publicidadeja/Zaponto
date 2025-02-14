@@ -12,14 +12,11 @@ try {
 
     $id = (int)$_POST['id'];
     
-    // Iniciar transação
     $pdo->beginTransaction();
     
     // Marcar notificação como excluída
     $stmt = $pdo->prepare("UPDATE notificacoes SET excluida = 1 WHERE id = ?");
-    $success = $stmt->execute([$id]);
-
-    if (!$success) {
+    if (!$stmt->execute([$id])) {
         throw new Exception('Erro ao excluir notificação');
     }
 
@@ -30,7 +27,6 @@ try {
     ");
     $stmt->execute([$id]);
     
-    // Confirmar transação
     $pdo->commit();
 
     echo json_encode([
