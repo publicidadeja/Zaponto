@@ -6,6 +6,8 @@ include '../../includes/admin-auth.php';
 
 require_once '../../vendor/autoload.php';
 
+require_once '../../logs/logger.php';
+
 
 // Verificar se é admin
 redirecionarSeNaoAdmin();
@@ -44,87 +46,141 @@ try {
 // Processar o envio de nova notificação
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        // Inicia a transação
         $pdo->beginTransaction();
         
-        $titulo = trim($_POST['titulo']);
-        $mensagem = trim($_POST['mensagem']);
-        $tipo = $_POST['tipo'];
-        $segmentacao = $_POST['segmentacao'];
-        $tipoEnvio = $_POST['tipo_envio'];
+        // Validação e sanitização dos dados recebidos
+        $titulo = trim(filter_input(INPUT_POST, 'titulo', FILTER_SANITIZE_STRING));
+        $mensagem = trim(filter_input(INPUT_POST, 'mensagem', FILTER_SANITIZE_STRING));
+        $tipo = filter_input(INPUT_POST, 'tipo', FILTER_SANITIZE_STRING);
+        $segmentacao = filter_input(INPUT_POST, 'segmentacao', FILTER_SANITIZE_STRING);
+        $tipoEnvio = filter_input(INPUT_POST, 'tipo_envio', FILTER_SANITIZE_STRING);
         
         // Validações básicas
         if (empty($titulo) || empty($mensagem)) {
-            throw new Exception("Título e mensagem são obrigatórios");
+            throw new Exception('Título e mensagem são obrigatórios');
         }
 
+        // Prepara a query base para inserção da notificação
+        $stmt = $pdo->prepare("
+            INSERT INTO notificacoes (
+                titulo, 
+                mensagem, 
+                tipo, 
+                data_criacao, 
+                status,
+                tipo_envio
+            ) VALUES (
+                :titulo, 
+                :mensagem, 
+                :tipo, 
+                NOW(), 
+                :status,
+                :tipo_envio
+            )
+        ");
+
+        // Define o status inicial
+        $status = ($tipoEnvio === 'agendado') ? 'agendado' : 'enviado';
+
+        // Executa a inserção da notificação
+        $stmt->execute([
+            ':titulo' => $titulo,
+            ':mensagem' => $mensagem,
+            ':tipo' => $tipo,
+            ':status' => $status,
+            ':tipo_envio' => $tipoEnvio
+        ]);
+
+        $notificacaoId = $pdo->lastInsertId();
+
+        // Processa o agendamento se necessário
         if ($tipoEnvio === 'agendado') {
-            $dataAgendamento = $_POST['data_agendamento'];
-            $dataAtual = date('Y-m-d H:i:s');
+            $dataAgendamento = filter_input(INPUT_POST, 'data_agendamento', FILTER_SANITIZE_STRING);
             
-            if (strtotime($dataAgendamento) <= strtotime($dataAtual)) {
-                throw new Exception("Data de agendamento deve ser futura");
+            if (empty($dataAgendamento)) {
+                throw new Exception('Data de agendamento é obrigatória');
             }
-        
 
-            // Inserir na tabela de notificações agendadas
-            $stmt = $pdo->prepare("
-                INSERT INTO notificacoes_agendadas 
-                (titulo, mensagem, tipo, data_agendamento, segmentacao, status) 
-                VALUES (?, ?, ?, ?, ?, 'pendente')
+            $stmtAgendamento = $pdo->prepare("
+                INSERT INTO agendamentos (
+                    notificacao_id,
+                    data_agendamento,
+                    status
+                ) VALUES (
+                    :notificacao_id,
+                    :data_agendamento,
+                    'pendente'
+                )
             ");
-            $stmt->execute([$titulo, $mensagem, $tipo, $dataAgendamento, $segmentacao]);
-            
-            $_SESSION['sucesso'] = "Notificação agendada com sucesso para " . date('d/m/Y H:i', strtotime($dataAgendamento));
-        
-        } else {
-            // Envio imediato
-            // Buscar usuários baseado na segmentação
-            $query = "SELECT id FROM usuarios WHERE status = 'ativo'";
-            
-            if ($segmentacao === 'plano_ativo') {
-                $query .= " AND EXISTS (
-                    SELECT 1 FROM assinaturas 
-                    WHERE usuario_id = usuarios.id 
-                    AND status = 'ativo'
-                )";
-            } elseif ($segmentacao === 'plano_vencendo') {
-                $query .= " AND EXISTS (
-                    SELECT 1 FROM assinaturas 
-                    WHERE usuario_id = usuarios.id 
-                    AND status = 'ativo' 
-                    AND data_fim <= DATE_ADD(NOW(), INTERVAL 5 DAY)
-                )";
-            }
-            
-            $stmtUsers = $pdo->query($query);
-            $usuarios = $stmtUsers->fetchAll(PDO::FETCH_COLUMN);
-            
-            if (empty($usuarios)) {
-                throw new Exception("Nenhum usuário encontrado para os critérios selecionados");
-            }
 
-            // Criar notificação para cada usuário
-            foreach ($usuarios as $usuario_id) {
-                $stmt = $pdo->prepare("
-                    INSERT INTO notificacoes 
-                    (usuario_id, tipo, titulo, mensagem, data_criacao, lida) 
-                    VALUES (?, ?, ?, ?, NOW(), 0)
-                ");
-                $stmt->execute([$usuario_id, $tipo, $titulo, $mensagem]);
-            }
-            
-            $_SESSION['sucesso'] = "Notificação enviada com sucesso para " . count($usuarios) . " usuários";
+            $stmtAgendamento->execute([
+                ':notificacao_id' => $notificacaoId,
+                ':data_agendamento' => $dataAgendamento
+            ]);
         }
+
+        // Processa a segmentação de usuários
+        $queryUsuarios = "SELECT id FROM usuarios WHERE 1=1";
         
+        if ($segmentacao === 'ativos') {
+            $queryUsuarios .= " AND status = 'ativo'";
+        } elseif ($segmentacao === 'inativos') {
+            $queryUsuarios .= " AND status = 'inativo'";
+        }
+
+        $usuarios = $pdo->query($queryUsuarios)->fetchAll(PDO::FETCH_COLUMN);
+
+        // Insere as relações usuário-notificação
+        $stmtRelacao = $pdo->prepare("
+            INSERT INTO usuario_notificacao (
+                usuario_id,
+                notificacao_id,
+                status,
+                data_envio
+            ) VALUES (
+                :usuario_id,
+                :notificacao_id,
+                :status,
+                :data_envio
+            )
+        ");
+
+        foreach ($usuarios as $usuarioId) {
+            $stmtRelacao->execute([
+                ':usuario_id' => $usuarioId,
+                ':notificacao_id' => $notificacaoId,
+                ':status' => 'pendente',
+                ':data_envio' => ($tipoEnvio === 'imediato') ? date('Y-m-d H:i:s') : null
+            ]);
+        }
+
+        // Commit da transação
         $pdo->commit();
         
+        // Define mensagem de sucesso
+        $_SESSION['sucesso'] = "Notificação " . 
+            ($tipoEnvio === 'agendado' ? 'agendada' : 'enviada') . 
+            " com sucesso!";
+
+        // Redireciona após sucesso
+        header('Location: notificacoes.php');
+        exit;
+
     } catch (Exception $e) {
+        // Rollback em caso de erro
         $pdo->rollBack();
+        
+        // Log do erro
+        error_log("Erro ao processar notificação: " . $e->getMessage());
+        
+        // Define mensagem de erro
         $_SESSION['erro'] = "Erro ao processar notificação: " . $e->getMessage();
+        
+        // Redireciona em caso de erro
+        header('Location: notificacoes.php');
+        exit;
     }
-    
-    header('Location: notificacoes.php');
-    exit;
 }
 
 // Adicionar antes da query de busca de notificações
@@ -750,13 +806,22 @@ $(document).ready(function() {
                     });
                     alert('Notificação excluída com sucesso!');
                 } else {
+                    console.error('Erro na resposta:', response);
                     alert('Erro ao excluir notificação: ' + (response.error || 'Erro desconhecido'));
                 }
             },
             error: function(xhr, status, error) {
-                console.error('Erro AJAX:', error);
+                // Log detalhado do erro
+                console.error('Status:', status);
+                console.error('Erro:', error);
                 console.error('Resposta:', xhr.responseText);
-                alert('Erro ao processar a requisição: ' + error);
+                
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    alert('Erro ao excluir notificação: ' + (response.error || 'Erro desconhecido'));
+                } catch (e) {
+                    alert('Erro ao processar a requisição. Por favor, verifique o console para mais detalhes.');
+                }
             }
         });
     }
