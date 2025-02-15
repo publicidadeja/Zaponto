@@ -165,12 +165,35 @@
     flex-direction: column;
     padding: 20px;
     background: #f8f9fa;
+    height: calc(100% - 80px); /* Ajusta a altura considerando o header */
+    overflow: hidden; /* Importante para manter o layout */
 }
 
 #ai-assistant-messages {
     flex: 1;
     overflow-y: auto;
     padding-right: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: calc(100% - 60px); /* Ajusta a altura considerando o input */
+    max-height: 450px; /* Define uma altura máxima */
+    scrollbar-width: thin; /* Para Firefox */
+    scrollbar-color: #0098fc #f8f9fa; /* Para Firefox */
+}
+
+/* Estilização da scrollbar para Chrome/Safari */
+#ai-assistant-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+#ai-assistant-messages::-webkit-scrollbar-track {
+    background: #f8f9fa;
+}
+
+#ai-assistant-messages::-webkit-scrollbar-thumb {
+    background-color: #0098fc;
+    border-radius: 3px;
 }
 
 .message {
@@ -246,13 +269,22 @@
 
 @media (max-width: 480px) {
     .ai-assistant-container {
-        width: 100vw;
-        height: 100vh;
-        bottom: 0;
-        right: 0;
-        border-radius: 0;
-    }
-    
+    position: absolute;
+    bottom: 80px;
+    right: 0;
+    width: 380px;
+    height: 600px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 5px 25px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+}
     #ai-assistant-floating-button {
         width: 50px;
         height: 50px;
