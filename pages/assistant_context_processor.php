@@ -2,20 +2,21 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
+error_log("Requisição recebida: " . file_get_contents('php://input'));
 
 session_start();
 
 // Set headers before any output
 header('Content-Type: application/json; charset=utf-8');
 
-// Check required files
-if (!file_exists('vendor/autoload.php') || !file_exists('../includes/db.php')) {
+// caminhos relativos
+if (!file_exists('../vendor/autoload.php') || !file_exists('../includes/db.php')) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Required files not found']);
     exit;
 }
 
-require 'vendor/autoload.php';
+require '../vendor/autoload.php';
 require '../includes/db.php';
 
 use GuzzleHttp\Client;
@@ -44,7 +45,7 @@ try {
         public function __construct($pdo, $usuario_id) {
             $this->pdo = $pdo;
             $this->usuario_id = $usuario_id;
-            $this->api_key = 'sua_chave_api_aqui'; // Substitua pela sua chave API real
+            $this->api_key = 'sua-chave-api-real-aqui'; // Substitua pela sua chave API real
             $this->api_url = 'https://api.anthropic.com/v1/messages';
         }
 
@@ -56,8 +57,10 @@ try {
 
         public function processMessage($prompt) {
             try {
+                error_log("Iniciando processamento da mensagem");
                 $client = new Client();
-                $response = $client->post($this->api_url, [
+                
+                $requestData = [
                     'headers' => [
                         'Content-Type' => 'application/json',
                         'x-api-key' => $this->api_key,
@@ -69,15 +72,21 @@ try {
                             ['role' => 'user', 'content' => $prompt]
                         ]
                     ]
-                ]);
-
+                ];
+                
+                error_log("Dados da requisição: " . json_encode($requestData));
+                
+                $response = $client->post($this->api_url, $requestData);
+                
                 $result = json_decode($response->getBody(), true);
-
+                error_log("Resposta da API: " . json_encode($result));
+                
                 return [
                     'success' => true,
                     'content' => $result['content'][0]['text'] ?? 'Resposta não encontrada'
                 ];
             } catch (RequestException $e) {
+                error_log("Erro na API: " . $e->getMessage());
                 throw new Exception('Erro na comunicação com a API: ' . $e->getMessage());
             }
         }

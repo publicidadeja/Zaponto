@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', checkSession);
         addMessage('user', prompt);
         const loadingMessage = addMessage('assistant', '', true);
 
-        const response = await fetch('assistant_context_processor.php', {
+        const response = await fetch('../pages/assistant_context_processor.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
