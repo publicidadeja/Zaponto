@@ -144,15 +144,6 @@ document.addEventListener('DOMContentLoaded', checkSession);
     }
 }
 
-// event listeners
-document.getElementById('ai-assistant-send').addEventListener('click', sendMessage);
-document.getElementById('ai-assistant-prompt').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
-
     // Event listeners para envio
     sendBtn.addEventListener('click', sendMessage);
     promptInput.addEventListener('keypress', (e) => {
@@ -200,6 +191,3 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
     });
     return false;
 };
-
-console.log('Enviando prompt:', prompt);
-console.log('Resposta da API:', data);
