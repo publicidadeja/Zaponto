@@ -99,50 +99,53 @@ document.addEventListener('DOMContentLoaded', checkSession);
 
     // Enviar mensagem
     async function sendMessage() {
-    if (isProcessing) return;
-
-    const prompt = promptInput.value.trim();
-    if (!prompt) return;
-
-    isProcessing = true;
-    promptInput.value = '';
-    autoResizeTextarea(promptInput);
-
-    try {
-        // Adiciona a mensagem do usuário
-        addMessage('user', prompt);
-        const loadingMessage = addMessage('assistant', '', true);
-
-        const response = await fetch('../pages/assistant_context_processor.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ prompt: prompt })
-        });
-
-        // Remove a mensagem de loading
-        loadingMessage.remove();
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        if (isProcessing) return;
+    
+        const prompt = promptInput.value.trim();
+        if (!prompt) return;
+    
+        isProcessing = true;
+        promptInput.value = '';
+        autoResizeTextarea(promptInput);
+    
+        try {
+            // Adiciona a mensagem do usuário
+            addMessage('user', prompt);
+            // Usa addMessage com parâmetro isLoading como true para mostrar loading
+            const loadingMessage = addMessage('assistant', '', true);
+    
+            const response = await fetch('../pages/assistant_context_processor.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ prompt: prompt })
+            });
+    
+            // Remove a mensagem de loading
+            loadingMessage.remove();
+    
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Erro na resposta:', errorText);
+                throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+            }
+    
+            const data = await response.json();
+    
+            if (data && data.success) {
+                addMessage('assistant', data.content || data.message);
+            } else {
+                throw new Error(data.error || 'Erro desconhecido');
+            }
+        } catch (error) {
+            console.error('Erro detalhado:', error);
+            addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.');
+        } finally {
+            isProcessing = false;
+            scrollToBottom();
         }
-
-        const data = await response.json();
-
-        if (data && data.success) {
-            addMessage('assistant', data.content || data.message);
-        } else {
-            throw new Error(data.error || 'Erro desconhecido');
-        }
-    } catch (error) {
-        console.error('Erro:', error);
-        addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.');
-    } finally {
-        isProcessing = false;
-        scrollToBottom();
     }
-}
 
     // Event listeners para envio
     sendBtn.addEventListener('click', sendMessage);

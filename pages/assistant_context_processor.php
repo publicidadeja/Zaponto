@@ -63,15 +63,19 @@ try {
                 $requestData = [
                     'headers' => [
                         'Content-Type' => 'application/json',
-                        'x-api-key' => $this->api_key,
+                        'anthropic-api-key' => $this->api_key,  // Modificado aqui
                         'anthropic-version' => '2023-06-01'
                     ],
                     'json' => [
-                        'model' => 'claude-3-haiku-20240307',
-                        'messages' => [
-                            ['role' => 'user', 'content' => $prompt]
-                        ]
-                    ]
+    'model' => 'claude-3-haiku-20240307',
+    'messages' => [
+        [
+            'role' => 'user',
+            'content' => $prompt
+        ]
+    ],
+    'max_tokens' => 1000
+]
                 ];
                 
                 error_log("Dados da requisição: " . json_encode($requestData));
