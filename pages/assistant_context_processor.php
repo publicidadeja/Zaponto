@@ -54,31 +54,79 @@ class AssistantContextProcessor {
     private $usuario_id;
     private $api_key;
     private $api_url;
+    private $prompt_base;
 
     public function __construct($pdo, $usuario_id) {
         $this->pdo = $pdo;
         $this->usuario_id = $usuario_id;
-        $this->api_key = 'sua-chave-api-aqui'; // Substitua pela sua chave API real
+        $this->api_key = 'minha_api_aqui';
         $this->api_url = 'https://api.anthropic.com/v1/messages';
+        $this->prompt_base = $this->loadPromptBase();
+    }
+
+    private function loadPromptBase() {
+        $prompt_path = __DIR__ . '/../prompts/assistant_base.txt';
+        if (!file_exists($prompt_path)) {
+            throw new Exception('Arquivo de prompt base não encontrado');
+        }
+        return file_get_contents($prompt_path);
     }
 
     private function getDadosUsuario() {
-        $stmt = $this->pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
+        $stmt = $this->pdo->prepare("
+            SELECT u.*, 
+                   COUNT(le.id) as total_leads,
+                   MAX(le.data_envio) as ultimo_envio,
+                   MAX(le.mensagem) as ultima_mensagem,
+                   COUNT(DISTINCT CASE WHEN le.data_envio >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN DATE(le.data_envio) END) as frequencia_envios
+            FROM usuarios u
+            LEFT JOIN leads_enviados le ON u.id = le.usuario_id
+            WHERE u.id = ?
+            GROUP BY u.id
+        ");
         $stmt->execute([$this->usuario_id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    private function preparePrompt($user_prompt) {
+        $dados_usuario = $this->getDadosUsuario();
+        
+        // Preparar dados do contexto
+        $contexto = [
+            '{{nome_negocio}}' => $dados_usuario['empresa'] ?? 'Não definido',
+            '{{segmento}}' => $dados_usuario['segmento'] ?? 'Não definido',
+            '{{publico_alvo}}' => $dados_usuario['publico_alvo'] ?? 'Não definido',
+            '{{objetivo_principal}}' => $dados_usuario['objetivo'] ?? 'Não definido',
+            '{{total_leads}}' => $dados_usuario['total_leads'] ?? '0',
+            '{{ultimo_envio}}' => $dados_usuario['ultimo_envio'] ?? 'Nenhum envio',
+            '{{ultima_mensagem}}' => $dados_usuario['ultima_mensagem'] ?? 'Nenhuma mensagem',
+            '{{frequencia_envios}}' => $dados_usuario['frequencia_envios'] ?? '0'
+        ];
+
+        // Substituir placeholders no prompt base
+        $prompt_completo = $this->prompt_base;
+        foreach ($contexto as $key => $value) {
+            $prompt_completo = str_replace($key, $value, $prompt_completo);
+        }
+
+        // Adicionar a pergunta do usuário ao final
+        return $prompt_completo . "\n\nPergunta do usuário: " . $user_prompt;
     }
 
     public function processMessage($prompt) {
         try {
             logError("Iniciando processamento da mensagem");
 
+            // Preparar o prompt completo com contexto
+            $prompt_completo = $this->preparePrompt($prompt);
+            
             // Prepara dados para API
             $request_body = json_encode([
                 'model' => 'claude-3-haiku-20240307',
                 'messages' => [
                     [
                         'role' => 'user',
-                        'content' => $prompt
+                        'content' => $prompt_completo
                     ]
                 ],
                 'max_tokens' => 1000
