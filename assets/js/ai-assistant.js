@@ -83,6 +83,20 @@ document.addEventListener('DOMContentLoaded', function() {
         return messageDiv;
     }
 
+    async function checkSession() {
+    try {
+        const response = await fetch('check_session.php');
+        const data = await response.json();
+        if (!data.authenticated) {
+            window.location.href = 'login.php';
+        }
+    } catch (error) {
+        console.error('Erro ao verificar sessão:', error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', checkSession);
+
     // Enviar mensagem
     async function sendMessage() {
     if (isProcessing) return;
@@ -94,11 +108,12 @@ document.addEventListener('DOMContentLoaded', function() {
     promptInput.value = '';
     autoResizeTextarea(promptInput);
 
-    addMessage('user', prompt);
-    const loadingMessage = addMessage('assistant', '', true);
-
     try {
-        const response = await fetch('/pages/assistant_context_processor.php', {
+        // Adiciona a mensagem do usuário
+        addMessage('user', prompt);
+        const loadingMessage = addMessage('assistant', '', true);
+
+        const response = await fetch('assistant_context_processor.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -106,27 +121,37 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({ prompt: prompt })
         });
 
+        // Remove a mensagem de loading
+        loadingMessage.remove();
+
         if (!response.ok) {
-            throw new Error('Erro na requisição');
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
-        loadingMessage.remove();
 
-        if (data.success && data.content) {
-            addMessage('assistant', data.content);
+        if (data && data.success) {
+            addMessage('assistant', data.content || data.message);
         } else {
             throw new Error(data.error || 'Erro desconhecido');
         }
     } catch (error) {
         console.error('Erro:', error);
-        loadingMessage.remove();
-        addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem.');
+        addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.');
     } finally {
         isProcessing = false;
         scrollToBottom();
     }
 }
+
+// event listeners
+document.getElementById('ai-assistant-send').addEventListener('click', sendMessage);
+document.getElementById('ai-assistant-prompt').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
 
     // Event listeners para envio
     sendBtn.addEventListener('click', sendMessage);
@@ -164,3 +189,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+window.onerror = function(msg, url, lineNo, columnNo, error) {
+    console.error('Erro:', {
+        message: msg,
+        url: url,
+        lineNo: lineNo,
+        columnNo: columnNo,
+        error: error
+    });
+    return false;
+};
+
+console.log('Enviando prompt:', prompt);
+console.log('Resposta da API:', data);
