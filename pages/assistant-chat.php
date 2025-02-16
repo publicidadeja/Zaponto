@@ -1,6 +1,18 @@
 <?php
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
+require_once '../includes/auth.php'; // Add this line to include authentication functions
+
+// Initialize session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Check if user is logged in before accessing session variables
+if (!estaLogado()) {
+    header('Location: ../pages/login.php');
+    exit;
+}
 
 // Get user's AI access status
 $limites = verificarLimitesUsuario($pdo, $_SESSION['usuario_id']);
@@ -51,8 +63,7 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
                 <div class="message assistant-message">
                     <div class="message-content">
                         <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png" class="assistant-avatar">
-                        <div class="message-bubble">
-                            Olá! Sou o especialista de marketing do Zaponto. Como posso ajudar você hoje?
+                        <div class="message-bubble">Olá! Sou o especialista de marketing do Zaponto. Como posso ajudar você hoje?
                         </div>
                     </div>
                 </div>
@@ -414,5 +425,5 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
 }
 </style>
 <script>window.hasAIAccess = <?php echo $tem_acesso_ia ? 'true' : 'false'; ?>;</script>
-<script>require_once '../includes/assistant.php';</script>
+
 <script src="../assets/js/ai-assistant.js"></script>

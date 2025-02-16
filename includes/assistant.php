@@ -20,11 +20,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             break;
 
-        case 'load':
-            $mensagens = carregarMensagensAssistente($pdo, $_SESSION['usuario_id']);
-            $response['success'] = true;
-            $response['messages'] = $mensagens;
-            break;
+            case 'load':
+                $mensagens = carregarMensagensAssistente($pdo, $_SESSION['usuario_id']);
+                $response = [
+                    'success' => true,
+                    'messages' => array_map(function($msg) {
+                        return [
+                            'type' => 'assistant',
+                            'mensagem' => $msg['mensagem'],
+                            'timestamp' => $msg['data_criacao']
+                        ];
+                    }, $mensagens)
+                ];
+                break;
+            
 
         case 'clear':
             $stmt = $pdo->prepare("DELETE FROM assistant_chat_historico WHERE usuario_id = ?");

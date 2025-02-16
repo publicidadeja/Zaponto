@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const promptInput = document.getElementById('ai-assistant-prompt');
     const sendBtn = document.getElementById('ai-assistant-send');
     const toggleBtn = document.getElementById('ai-assistant-toggle');
+    initializeChat();
 
     // Verifica se o usuário tem acesso à IA (definido no PHP)
     const hasAIAccess = window.hasAIAccess || false;
@@ -41,6 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Funções de histórico atualizadas com AJAX
     async function saveMessages(messages) {
         try {
+            const messageToSave = messages[messages.length - 1];
             const response = await fetch('../includes/assistant.php', {
                 method: 'POST',
                 headers: {
@@ -48,12 +50,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({
                     action: 'save',
-                    message: messages[messages.length - 1].content
+                    message: messageToSave.content,
+                    type: messageToSave.type // Adicionar o tipo da mensagem
                 })
             });
-            return await response.json();
+            const result = await response.json();
+            if (!result.success) {
+                console.error('Erro ao salvar mensagem:', result.error);
+            }
+            return result;
         } catch (error) {
             console.error('Erro ao salvar mensagem:', error);
+            return { success: false, error: error.message };
         }
     }
 
@@ -97,30 +105,46 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function showWelcomeMessage() {
-        addMessage('assistant', 'Olá! Sou o assistente virtual do Zaponto. Como posso ajudar você hoje?', false, true);
-    }
-
     async function loadChatHistory() {
-        const result = await loadMessages();
-        if (result.success && result.messages) {
-            messageHistory = result.messages;
+        try {
+            const result = await loadMessages();
+            messageHistory = [];
             messagesContainer.innerHTML = '';
-            
-            if (messageHistory.length === 0) {
-                showWelcomeMessage();
+    
+            if (result && result.success && Array.isArray(result.messages)) {
+                messageHistory = result.messages;
+                
+                if (messageHistory.length === 0) {
+                    showWelcomeMessage();
+                } else {
+                    messageHistory.forEach(msg => {
+                        // Ajuste para usar a estrutura correta dos dados do servidor
+                        addMessage(
+                            'assistant', 
+                            msg.mensagem || msg.content, 
+                            false, 
+                            false
+                        );
+                    });
+                }
             } else {
-                messageHistory.forEach(msg => {
-                    addMessage(msg.type || 'assistant', msg.mensagem, false, false);
-                });
+                showWelcomeMessage();
             }
-        } else {
+        } catch (error) {
+            console.error('Erro ao carregar histórico:', error);
             showWelcomeMessage();
         }
     }
 
     // Inicialização do chat
-    loadChatHistory();
+    async function initializeChat() {
+        try {
+            await loadChatHistory();
+        } catch (error) {
+            console.error('Erro ao inicializar chat:', error);
+            showWelcomeMessage();
+        }
+    }
 
     function autoResizeTextarea(element) {
         element.style.height = 'auto';
@@ -292,3 +316,4 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
 };
 
 console.log('AI Access:', window.hasAIAccess);
+console.log('Carregando mensagens:', result);
