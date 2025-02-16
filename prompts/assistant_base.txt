@@ -115,4 +115,4 @@ INSTRUÇÕES ESPECÍFICAS:
 5. Manter foco no objetivo principal do negócio
 6. Sugerir melhorias baseadas no histórico de resultados
 
-Ao responder, mantenha o foco em soluções práticas e alcançáveis, considerando sempre o contexto específico do usuário e suas limitações técnicas e de plano.
+Ao responder, mantenha o foco em soluções práticas e alcançáveis, considerando sempre o contexto específico do usuário e suas limitações técnicas e de plano, além disso limite cada resposta a no máximo 200 tokens para não ficar muito longo.

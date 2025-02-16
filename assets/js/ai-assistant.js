@@ -96,7 +96,7 @@ let messageHistory = loadMessages();
         
         const messageBubble = document.createElement('div');
         messageBubble.className = 'message-bubble';
-        messageBubble.textContent = content;
+        messageBubble.innerHTML = content;
         
         messageContent.appendChild(messageBubble);
         messageDiv.appendChild(messageContent);
@@ -139,7 +139,7 @@ let messageHistory = loadMessages();
                 </div>
             `;
         } else {
-            messageBubble.textContent = content;
+            messageBubble.innerHTML = content;
             // Adiciona a mensagem ao histórico apenas se não for loading
             messageHistory.push({
                 type: type,

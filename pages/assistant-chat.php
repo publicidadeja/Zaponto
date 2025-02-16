@@ -237,7 +237,36 @@
     padding: 12px 16px;
     border-radius: 15px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    max-width: 80%;
+    max-width: 90%;
+    line-height: 1.5;
+    white-space: pre-line;
+}
+
+.message-bubble strong,
+.message-bubble b {
+    font-weight: 600;
+}
+
+.message-bubble ul,
+.message-bubble ol {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.message-bubble p {
+    margin: 8px 0;
+}
+
+.message-bubble h3,
+.message-bubble h4 {
+    margin: 12px 0 8px 0;
+    font-weight: 600;
+}
+
+.message-bubble hr {
+    margin: 12px 0;
+    border: none;
+    border-top: 1px solid rgba(0,0,0,0.1);
 }
 
 .user-message .message-content {
