@@ -7,10 +7,50 @@ document.addEventListener('DOMContentLoaded', function() {
     const sendBtn = document.getElementById('ai-assistant-send');
     const toggleBtn = document.getElementById('ai-assistant-toggle');
 
+    // Verifica se o usuário tem acesso à IA (definido no PHP)
+    const hasAIAccess = window.hasAIAccess || false;
+
     // Estado inicial
     let isWidgetOpen = false;
     let isProcessing = false;
     let messageHistory = [];
+
+    // Se não tiver acesso à IA, desabilita a entrada de texto e o botão de envio
+    if (!hasAIAccess) {
+        if (promptInput) {
+            promptInput.disabled = true;
+            promptInput.placeholder = "Acesso à IA não disponível no seu plano";
+        }
+        if (sendBtn) {
+            sendBtn.disabled = true;
+        }
+        
+        // Remove o botão de limpar histórico se existir
+        const clearHistoryBtn = document.getElementById('clear-history');
+        if (clearHistoryBtn) {
+            clearHistoryBtn.style.display = 'none';
+        }
+
+        // Esconde a área de input
+        const inputArea = document.querySelector('.ai-assistant-input');
+        if (inputArea) {
+            inputArea.style.display = 'none';
+        }
+    }
+
+    // Função modificada para mostrar mensagem de boas-vindas
+    function showWelcomeMessage() {
+        if (!hasAIAccess) {
+            addMessage('assistant', `
+                <strong>Acesso Restrito à IA</strong><br><br>
+                Seu plano atual não inclui acesso às funcionalidades de IA. 
+                Para aproveitar estratégias avançadas de marketing no WhatsApp e aumentar suas vendas com a ajuda da nossa IA, considere fazer um upgrade do seu plano.<br><br>
+                <a href="/pages/planos.php" class="upgrade-button">Fazer Upgrade do Plano</a>
+            `, false, true);
+        } else {
+            addMessage('assistant', 'Olá! Sou o especialista de marketing do Zaponto. Como posso ajudar você hoje?', false, true);
+        }
+    }
 
     // Funções de utilidade para o histórico
     function saveMessages(messages) {
@@ -149,8 +189,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return messageDiv;
     }
 
+
     async function sendMessage() {
-        if (isProcessing) return;
+        if (isProcessing || !hasAIAccess) return;
 
         const prompt = promptInput.value.trim();
         if (!prompt) return;

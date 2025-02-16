@@ -1,3 +1,12 @@
+<?php
+require_once '../includes/db.php';
+require_once '../includes/functions.php';
+
+// Get user's AI access status
+$limites = verificarLimitesUsuario($pdo, $_SESSION['usuario_id']);
+$tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
+?>
+
 <div id="ai-assistant-widget" class="ai-assistant-closed">
     <!-- Botão circular flutuante -->
     <div id="ai-assistant-floating-button">
@@ -14,35 +23,72 @@
                     <span class="header-status">Online</span>
                 </div>
             </div>
+            <?php if ($tem_acesso_ia): ?>
             <button id="clear-history" class="clear-history-button" title="Limpar histórico">
-    <i class="fas fa-trash"></i>
-</button>
+                <i class="fas fa-trash"></i>
+            </button>
+            <?php endif; ?>
             <button id="ai-assistant-toggle" class="close-button">×</button>
         </div>
 
         <div class="ai-assistant-body">
             <div id="ai-assistant-messages">
-                <!-- Mensagem de boas-vindas -->
+                <?php if (!$tem_acesso_ia): ?>
+                <!-- Mensagem para usuários sem acesso à IA -->
                 <div class="message assistant-message">
                     <div class="message-content">
                         <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png" class="assistant-avatar">
-                        <div class="message-bubble">Olá! Sou o especialista de marketing do Zaponto. Como posso ajudar você hoje?
+                        <div class="message-bubble">
+                            <strong>Acesso Restrito à IA</strong><br><br>
+                            Seu plano atual não inclui acesso às funcionalidades de IA. 
+                            Para aproveitar estratégias avançadas de marketing no WhatsApp e aumentar suas vendas com a ajuda da nossa IA, considere fazer um upgrade do seu plano.<br><br>
+                            <a href="/pages/planos.php" class="upgrade-button">Fazer Upgrade do Plano</a>
                         </div>
                     </div>
                 </div>
+                <?php else: ?>
+                <!-- Mensagem de boas-vindas para usuários com acesso -->
+                <div class="message assistant-message">
+                    <div class="message-content">
+                        <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png" class="assistant-avatar">
+                        <div class="message-bubble">
+                            Olá! Sou o especialista de marketing do Zaponto. Como posso ajudar você hoje?
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
             </div>
 
+            <?php if ($tem_acesso_ia): ?>
             <div class="ai-assistant-input">
                 <textarea id="ai-assistant-prompt" placeholder="Digite sua mensagem..." rows="1"></textarea>
                 <button id="ai-assistant-send">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
 
 <style>
+
+.upgrade-button {
+    display: inline-block;
+    background-color: #0098fc;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    text-decoration: none;
+    margin-top: 10px;
+    transition: background-color 0.3s ease;
+}
+
+.upgrade-button:hover {
+    background-color: #0076c4;
+    text-decoration: none;
+    color: white;
+}
 
 .clear-history-button {
     background: none;
@@ -366,5 +412,5 @@
     }
 }
 </style>
-
+<script>window.hasAIAccess = <?php echo $tem_acesso_ia ? 'true' : 'false'; ?>;</script>
 <script src="../assets/js/ai-assistant.js"></script>

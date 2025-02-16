@@ -182,4 +182,9 @@ function registrarExportacao($pdo, $admin_id, $tipo, $formato, $filtros = null) 
     ");
     return $stmt->execute([$admin_id, $tipo, $formato, json_encode($filtros)]);
 }
+
+function verificarAcessoIA($pdo, $usuario_id) {
+    $limites = verificarLimitesUsuario($pdo, $usuario_id);
+    return isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
+}
 ?>
