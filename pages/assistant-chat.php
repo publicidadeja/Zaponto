@@ -69,6 +69,28 @@
     font-family: 'Arial', sans-serif;
 }
 
+.typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 4px 8px;
+}
+
+.typing-indicator span {
+    width: 8px;
+    height: 8px;
+    background: #0098fc;
+    border-radius: 50%;
+    animation: bounce 1.3s linear infinite;
+}
+
+.typing-indicator span:nth-child(2) { animation-delay: 0.15s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-4px); }
+}
+
 #ai-assistant-floating-button {
     width: 60px;
     height: 60px;
@@ -95,7 +117,7 @@
     position: absolute;
     bottom: 80px;
     right: 0;
-    width: 380px;
+    width: 500px;
     height: 600px;
     background: white;
     border-radius: 20px;
