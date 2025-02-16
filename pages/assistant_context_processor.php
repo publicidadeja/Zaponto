@@ -76,18 +76,13 @@ class AssistantContextProcessor {
         $stmt = $this->pdo->prepare("
             SELECT 
                 u.*,
-                n.nome_negocio,
-                n.segmento,
-                n.tamanho_empresa,
-                n.objetivo,
                 a.status as status_assinatura,
                 a.is_trial,
                 a.limite_leads,
                 a.limite_mensagens,
                 a.tem_ia,
+                a.proximo_pagamento, -- Alterado de data_proximo_pagamento para proximo_pagamento
                 p.nome as nome_plano,
-                p.preco as preco_plano,
-                p.recursos as recursos_plano,
                 d.status as status_dispositivo,
                 COUNT(DISTINCT le.id) as total_leads,
                 COUNT(DISTINCT CASE WHEN le.data_envio >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN le.id END) as leads_ultimos_30_dias,
@@ -100,6 +95,19 @@ class AssistantContextProcessor {
                     WHERE me.usuario_id = u.id 
                     AND me.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
                 ) as total_mensagens_mes,
+                (
+                    SELECT MAX(mensagem)
+                    FROM mensagens_enviadas
+                    WHERE usuario_id = u.id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) as ultima_mensagem,
+                (
+                    SELECT COUNT(*)
+                    FROM mensagens_enviadas
+                    WHERE usuario_id = u.id
+                    AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                ) / 30 as frequencia_envios,
                 (
                     SELECT COUNT(*)
                     FROM ia_interacoes ia 
@@ -118,7 +126,6 @@ class AssistantContextProcessor {
                     AND d.status = 'CONNECTED'
                 ) as dispositivos_conectados
             FROM usuarios u
-            LEFT JOIN info_negocios n ON u.id = n.usuario_id
             LEFT JOIN assinaturas a ON u.id = a.usuario_id AND a.status = 'ativo'
             LEFT JOIN planos p ON a.plano_id = p.id
             LEFT JOIN dispositivos d ON u.id = d.usuario_id
@@ -135,43 +142,54 @@ class AssistantContextProcessor {
         $stmt_config->execute();
         $config = $stmt_config->fetch(PDO::FETCH_ASSOC);
         
-        // Combina os dados do usuário com as configurações
         return array_merge($dados ?? [], [
             'tempo_entre_envios' => $config['tempo_entre_envios'] ?? 30,
             'max_leads_dia' => $config['max_leads_dia'] ?? 1000,
-            'max_mensagens_dia' => $config['max_mensagens_dia'] ?? 1000,
-            'whatsapp_suporte' => $config['whatsapp_suporte'] ?? '',
-            'email_suporte' => $config['email_suporte'] ?? ''
+            'max_mensagens_dia' => $config['max_mensagens_dia'] ?? 1000
         ]);
     }
+    
 
     private function preparePrompt($user_prompt) {
         $dados_usuario = $this->getDadosUsuario();
         
-        // Preparar dados do contexto
         $contexto = [
             '{{nome_negocio}}' => $dados_usuario['nome_negocio'] ?? 'Não definido',
             '{{segmento}}' => $dados_usuario['segmento'] ?? 'Não definido',
-            '{{plano_atual}}' => $dados_usuario['nome_plano'] ?? 'Não definido',
+            '{{publico_alvo}}' => $dados_usuario['publico_alvo'] ?? 'Não definido',
+            '{{objetivo_principal}}' => $dados_usuario['objetivo_principal'] ?? 'Não definido',
+            '{{empresa}}' => $dados_usuario['empresa'] ?? 'Não definido',
+            '{{site}}' => $dados_usuario['site'] ?? 'Não definido',
+            '{{telefone}}' => $dados_usuario['telefone'] ?? 'Não definido',
+            '{{nome_plano}}' => $dados_usuario['nome_plano'] ?? 'Não definido',
             '{{status_assinatura}}' => $dados_usuario['status_assinatura'] ?? 'Inativo',
-            '{{total_leads}}' => $dados_usuario['total_leads'] ?? '0',
-            '{{leads_mes}}' => $dados_usuario['leads_ultimos_30_dias'] ?? '0',
-            '{{leads_convertidos}}' => $dados_usuario['leads_convertidos'] ?? '0',
-            '{{ultimo_envio}}' => $dados_usuario['ultimo_envio'] ?? 'Nenhum envio',
-            '{{mensagens_mes}}' => $dados_usuario['total_mensagens_mes'] ?? '0',
-            '{{dispositivos_conectados}}' => $dados_usuario['dispositivos_conectados'] ?? '0',
+            '{{is_trial}}' => $dados_usuario['is_trial'] ? 'Sim' : 'Não',
+            '{{limite_leads}}' => $dados_usuario['limite_leads'] ?? '0',
+            '{{limite_mensagens}}' => $dados_usuario['limite_mensagens'] ?? '0',
             '{{tem_ia}}' => $dados_usuario['tem_ia'] ? 'Sim' : 'Não',
-            '{{limite_leads}}' => $dados_usuario['limite_leads'] == -1 ? 'Ilimitado' : $dados_usuario['limite_leads'],
-            '{{limite_mensagens}}' => $dados_usuario['limite_mensagens'] == -1 ? 'Ilimitado' : $dados_usuario['limite_mensagens']
+            '{{proximo_pagamento}}' => $dados_usuario['proximo_pagamento'] ?? 'Não definido',
+            '{{total_leads}}' => $dados_usuario['total_leads'] ?? '0',
+            '{{leads_ultimos_30_dias}}' => $dados_usuario['leads_ultimos_30_dias'] ?? '0',
+            '{{leads_convertidos}}' => $dados_usuario['leads_convertidos'] ?? '0',
+            '{{leads_enviados_sucesso}}' => $dados_usuario['leads_enviados_sucesso'] ?? '0',
+            '{{total_mensagens_mes}}' => $dados_usuario['total_mensagens_mes'] ?? '0',
+            '{{ultimo_envio}}' => $dados_usuario['ultimo_envio'] ?? 'Nenhum envio',
+            '{{frequencia_envios}}' => number_format($dados_usuario['frequencia_envios'] ?? 0, 1),
+            '{{ultima_mensagem}}' => $dados_usuario['ultima_mensagem'] ?? 'Nenhuma mensagem',
+            '{{dispositivos_conectados}}' => $dados_usuario['dispositivos_conectados'] ?? '0',
+            '{{status_dispositivo}}' => $dados_usuario['status_dispositivo'] ?? 'Desconectado',
+            '{{tempo_entre_envios}}' => $dados_usuario['tempo_entre_envios'] ?? '30',
+            '{{max_leads_dia}}' => $dados_usuario['max_leads_dia'] ?? '1000',
+            '{{max_mensagens_dia}}' => $dados_usuario['max_mensagens_dia'] ?? '1000',
+            '{{total_interacoes_ia}}' => $dados_usuario['total_interacoes_ia'] ?? '0',
+            '{{notificacoes_nao_lidas}}' => $dados_usuario['notificacoes_nao_lidas'] ?? '0'
         ];
-
-        // Substituir placeholders no prompt base
+    
         $prompt_completo = $this->prompt_base;
         foreach ($contexto as $key => $value) {
             $prompt_completo = str_replace($key, $value, $prompt_completo);
         }
-
-        // Adicionar a pergunta do usuário ao final
+    
         return $prompt_completo . "\n\nPergunta do usuário: " . $user_prompt;
     }
 

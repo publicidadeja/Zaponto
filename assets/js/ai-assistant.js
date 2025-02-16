@@ -44,7 +44,7 @@ function clearChatHistory() {
 }
 
 // Array para manter o histórico de mensagens em memória
-let messageHistory = [];
+let messageHistory = loadMessages();
 
     // Função para auto-ajustar altura do textarea
     function autoResizeTextarea(element) {
@@ -77,6 +77,38 @@ let messageHistory = [];
 
     // Função para rolar para última mensagem
     function scrollToBottom() {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function addMessage(type, content) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}-message`;
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        
+        if (type === 'assistant') {
+            const avatar = document.createElement('img');
+            avatar.src = 'https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png';
+            avatar.className = 'assistant-avatar';
+            messageContent.appendChild(avatar);
+        }
+        
+        const messageBubble = document.createElement('div');
+        messageBubble.className = 'message-bubble';
+        messageBubble.textContent = content;
+        
+        messageContent.appendChild(messageBubble);
+        messageDiv.appendChild(messageContent);
+        messagesContainer.appendChild(messageDiv);
+        
+        // Adiciona a mensagem ao histórico
+        messageHistory.push({ type, content });
+        
+        // Salva o histórico atualizado
+        saveMessages(messageHistory);
+        
+        // Rola para a última mensagem
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
@@ -128,15 +160,16 @@ let messageHistory = [];
     
     // Adicione esta função para carregar o histórico quando a página for carregada
     function loadChatHistory() {
-        messageHistory = loadMessages();
+        messageHistory = loadMessages(); // Carrega as mensagens do localStorage
+        
         // Limpa o container de mensagens
         messagesContainer.innerHTML = '';
         
-        // Adiciona a mensagem de boas-vindas se não houver histórico
+        // Se não houver mensagens, adiciona a mensagem de boas-vindas
         if (messageHistory.length === 0) {
             addMessage('assistant', 'Olá! Sou o assistente virtual do Zaponto. Como posso ajudar você hoje?');
         } else {
-            // Carrega todas as mensagens do histórico
+            // Adiciona todas as mensagens do histórico
             messageHistory.forEach(msg => {
                 addMessage(msg.type, msg.content);
             });
