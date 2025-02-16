@@ -71,6 +71,7 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
     </div>
 </div>
 
+
 <style>
 
 .upgrade-button {
@@ -413,4 +414,5 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
 }
 </style>
 <script>window.hasAIAccess = <?php echo $tem_acesso_ia ? 'true' : 'false'; ?>;</script>
+<script>require_once '../includes/assistant.php';</script>
 <script src="../assets/js/ai-assistant.js"></script>

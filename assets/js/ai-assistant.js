@@ -38,71 +38,89 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Funções de utilidade para o histórico
-    function saveMessages(messages) {
-        const today = new Date().toISOString().split('T')[0];
-        localStorage.setItem(`chat_history_${today}`, JSON.stringify(messages));
-    }
-
-    function loadMessages() {
-        const today = new Date().toISOString().split('T')[0];
-        const savedMessages = localStorage.getItem(`chat_history_${today}`);
-        return savedMessages ? JSON.parse(savedMessages) : [];
-    }
-
-    function isNewDay() {
-        const lastMessage = messageHistory[messageHistory.length - 1];
-        if (!lastMessage) return true;
-        
-        const lastMessageDate = new Date(lastMessage.timestamp).toISOString().split('T')[0];
-        const today = new Date().toISOString().split('T')[0];
-        return lastMessageDate !== today;
-    }
-
-    function cleanOldMessages() {
-        const today = new Date().toISOString().split('T')[0];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith('chat_history_') && !key.includes(today)) {
-                localStorage.removeItem(key);
-            }
+    // Funções de histórico atualizadas com AJAX
+    async function saveMessages(messages) {
+        try {
+            const response = await fetch('../includes/assistant.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'save',
+                    message: messages[messages.length - 1].content
+                })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Erro ao salvar mensagem:', error);
         }
     }
 
-    function clearChatHistory() {
-        const today = new Date().toISOString().split('T')[0];
-        localStorage.removeItem(`chat_history_${today}`);
-        messageHistory = [];
-        messagesContainer.innerHTML = '';
-        showWelcomeMessage();
+    async function loadMessages() {
+        try {
+            const response = await fetch('../includes/assistant.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'load'
+                })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Erro ao carregar mensagens:', error);
+            return [];
+        }
+    }
+
+    async function clearChatHistory() {
+        try {
+            const response = await fetch('../includes/assistant.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'clear'
+                })
+            });
+            
+            if (response.ok) {
+                messageHistory = [];
+                messagesContainer.innerHTML = '';
+                showWelcomeMessage();
+            }
+        } catch (error) {
+            console.error('Erro ao limpar histórico:', error);
+        }
     }
 
     function showWelcomeMessage() {
         addMessage('assistant', 'Olá! Sou o assistente virtual do Zaponto. Como posso ajudar você hoje?', false, true);
     }
 
-    function loadChatHistory() {
-        messageHistory = loadMessages();
-        messagesContainer.innerHTML = '';
-        
-        if (messageHistory.length === 0) {
-            showWelcomeMessage();
+    async function loadChatHistory() {
+        const result = await loadMessages();
+        if (result.success && result.messages) {
+            messageHistory = result.messages;
+            messagesContainer.innerHTML = '';
+            
+            if (messageHistory.length === 0) {
+                showWelcomeMessage();
+            } else {
+                messageHistory.forEach(msg => {
+                    addMessage(msg.type || 'assistant', msg.mensagem, false, false);
+                });
+            }
         } else {
-            messageHistory.forEach(msg => {
-                addMessage(msg.type, msg.content, false, false);
-            });
+            showWelcomeMessage();
         }
     }
 
-    // Inicialização única do histórico
-    cleanOldMessages();
-    messageHistory = loadMessages();
-    
-    if (isNewDay() || messageHistory.length === 0) {
-        clearChatHistory();
-    } else {
-        loadChatHistory();
-    }
+    // Inicialização do chat
+    loadChatHistory();
 
     function autoResizeTextarea(element) {
         element.style.height = 'auto';
@@ -174,7 +192,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         return messageDiv;
     }
-
 
     async function sendMessage() {
         if (isProcessing || !hasAIAccess) return;
@@ -273,3 +290,5 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
     });
     return false;
 };
+
+console.log('AI Access:', window.hasAIAccess);
