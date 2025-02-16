@@ -7,6 +7,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const sendBtn = document.getElementById('ai-assistant-send');
     const toggleBtn = document.getElementById('ai-assistant-toggle');
 
+    // Inicialização do histórico
+    cleanOldMessages(); // Limpa mensagens antigas
+    loadChatHistory(); // Carrega o histórico do dia atual
+    
+    if (isNewDay()) {
+        clearChatHistory(); // Limpa o histórico se for um novo dia
+    }
+
     // Estado inicial
     let isWidgetOpen = false;
     let isProcessing = false;
@@ -54,11 +62,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Função para carregar o histórico
     function loadChatHistory() {
         messageHistory = loadMessages();
-        messagesContainer.innerHTML = '';
+        messagesContainer.innerHTML = ''; // Limpa o container
         
         if (messageHistory.length === 0) {
+            // Se não houver histórico, mostra a mensagem de boas-vindas
             addMessage('assistant', 'Olá! Sou o assistente virtual do Zaponto. Como posso ajudar você hoje?');
         } else {
+            // Se houver histórico, carrega todas as mensagens
             messageHistory.forEach(msg => {
                 addMessage(msg.type, msg.content);
             });
@@ -118,6 +128,15 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const messageContent = document.createElement('div');
         messageContent.classList.add('message-content');
+
+        if (!isLoading) {
+            messageHistory.push({
+                type: type,
+                content: content,
+                timestamp: new Date().toISOString()
+            });
+            saveMessages(messageHistory); // Salva no localStorage após cada mensagem
+        }
 
         if (type === 'assistant') {
             const avatar = document.createElement('img');

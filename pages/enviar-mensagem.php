@@ -383,15 +383,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 width: 100%;
             }
         }
+
+        /* Estilos para a imagem */
+.img-fluid {
+    max-width: 100%;
+    height: auto;
+    transition: transform 0.3s ease;
+}
+
+.img-fluid:hover {
+    transform: scale(1.02);
+}
+
+/* Ajustes responsivos */
+@media (max-width: 991.98px) {
+    .form-container {
+        max-width: 100%;
+    }
+}
+
+@media (min-width: 992px) {
+    .container {
+        max-width: 1400px;
+    }
+}
     </style>
 </head>
 <body>
     <?php include '../includes/header.php'; ?>
 
     <div class="container">
-        <div class="row">
-            <!-- Conteúdo Principal -->
-            <div class="col-md-12">
+    <div class="row align-items-center">
+        <!-- Coluna da Imagem -->
+        <div class="col-lg-6 mb-4 mb-lg-0 d-none d-lg-block">
+            <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/ENVIAR-MENSAGEM-ZAPONTO.png" 
+                 alt="Ilustração Enviar Mensagem" 
+                 class="img-fluid">
+        </div>
+        
+        <!-- Coluna do Formulário -->
+        <div class="col-lg-6">
                 <div class="form-container">
                     <h2><i class="fas fa-paper-plane me-2"></i> Enviar Mensagem</h2>
 

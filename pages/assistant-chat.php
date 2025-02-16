@@ -26,8 +26,7 @@
                 <div class="message assistant-message">
                     <div class="message-content">
                         <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png" class="assistant-avatar">
-                        <div class="message-bubble">
-                            Olá! Sou o assistente virtual do Zaponto. Como posso ajudar você hoje?
+                        <div class="message-bubble">Olá! Sou o especialista de marketing do Zaponto. Como posso ajudar você hoje?
                         </div>
                     </div>
                 </div>
