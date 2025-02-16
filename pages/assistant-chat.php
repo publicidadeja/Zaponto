@@ -14,6 +14,9 @@
                     <span class="header-status">Online</span>
                 </div>
             </div>
+            <button id="clear-history" class="clear-history-button" title="Limpar histórico">
+    <i class="fas fa-trash"></i>
+</button>
             <button id="ai-assistant-toggle" class="close-button">×</button>
         </div>
 
@@ -41,6 +44,23 @@
 </div>
 
 <style>
+
+.clear-history-button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 5px 10px;
+    margin-right: 10px;
+    border-radius: 5px;
+    transition: background 0.3s ease;
+}
+
+.clear-history-button:hover {
+    background: rgba(255,255,255,0.1);
+}
+
 #ai-assistant-widget {
     position: fixed;
     bottom: 20px;

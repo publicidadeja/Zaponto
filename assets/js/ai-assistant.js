@@ -6,10 +6,45 @@ document.addEventListener('DOMContentLoaded', function() {
     const promptInput = document.getElementById('ai-assistant-prompt');
     const sendBtn = document.getElementById('ai-assistant-send');
     const toggleBtn = document.getElementById('ai-assistant-toggle');
+
+    // Carrega o histórico de mensagens
+    loadChatHistory();
     
     // Estado inicial
     let isWidgetOpen = false;
     let isProcessing = false;
+
+    document.getElementById('clear-history').addEventListener('click', function(e) {
+        e.stopPropagation(); // Evita que o chat feche ao clicar no botão
+        if (confirm('Tem certeza que deseja limpar o histórico de hoje?')) {
+            clearChatHistory();
+        }
+    });
+
+    // Função para salvar mensagens no localStorage
+function saveMessages(messages) {
+    const today = new Date().toISOString().split('T')[0]; // Pega apenas a data
+    localStorage.setItem(`chat_history_${today}`, JSON.stringify(messages));
+}
+
+// Função para carregar mensagens do localStorage
+function loadMessages() {
+    const today = new Date().toISOString().split('T')[0];
+    const savedMessages = localStorage.getItem(`chat_history_${today}`);
+    return savedMessages ? JSON.parse(savedMessages) : [];
+}
+
+// Função para limpar histórico de mensagens
+function clearChatHistory() {
+    const today = new Date().toISOString().split('T')[0];
+    localStorage.removeItem(`chat_history_${today}`);
+    messageHistory = [];
+    messagesContainer.innerHTML = '';
+    addMessage('assistant', 'Olá! Sou o assistente virtual do Zaponto. Como posso ajudar você hoje?');
+}
+
+// Array para manter o histórico de mensagens em memória
+let messageHistory = [];
 
     // Função para auto-ajustar altura do textarea
     function autoResizeTextarea(element) {
@@ -52,17 +87,17 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const messageContent = document.createElement('div');
         messageContent.classList.add('message-content');
-
+    
         if (type === 'assistant') {
             const avatar = document.createElement('img');
             avatar.src = 'https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png';
             avatar.classList.add('assistant-avatar');
             messageContent.appendChild(avatar);
         }
-
+    
         const messageBubble = document.createElement('div');
         messageBubble.classList.add('message-bubble');
-
+    
         if (isLoading) {
             messageBubble.innerHTML = `
                 <div class="typing-indicator">
@@ -73,14 +108,39 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         } else {
             messageBubble.textContent = content;
+            // Adiciona a mensagem ao histórico apenas se não for loading
+            messageHistory.push({
+                type: type,
+                content: content,
+                timestamp: new Date().toISOString()
+            });
+            // Salva o histórico atualizado
+            saveMessages(messageHistory);
         }
-
+    
         messageContent.appendChild(messageBubble);
         messageDiv.appendChild(messageContent);
         messagesContainer.appendChild(messageDiv);
         scrollToBottom();
-
+    
         return messageDiv;
+    }
+    
+    // Adicione esta função para carregar o histórico quando a página for carregada
+    function loadChatHistory() {
+        messageHistory = loadMessages();
+        // Limpa o container de mensagens
+        messagesContainer.innerHTML = '';
+        
+        // Adiciona a mensagem de boas-vindas se não houver histórico
+        if (messageHistory.length === 0) {
+            addMessage('assistant', 'Olá! Sou o assistente virtual do Zaponto. Como posso ajudar você hoje?');
+        } else {
+            // Carrega todas as mensagens do histórico
+            messageHistory.forEach(msg => {
+                addMessage(msg.type, msg.content);
+            });
+        }
     }
 
     async function checkSession() {
