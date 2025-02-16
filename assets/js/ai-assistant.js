@@ -38,20 +38,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Função modificada para mostrar mensagem de boas-vindas
-    function showWelcomeMessage() {
-        if (!hasAIAccess) {
-            addMessage('assistant', `
-                <strong>Acesso Restrito à IA</strong><br><br>
-                Seu plano atual não inclui acesso às funcionalidades de IA. 
-                Para aproveitar estratégias avançadas de marketing no WhatsApp e aumentar suas vendas com a ajuda da nossa IA, considere fazer um upgrade do seu plano.<br><br>
-                <a href="/pages/planos.php" class="upgrade-button">Fazer Upgrade do Plano</a>
-            `, false, true);
-        } else {
-            addMessage('assistant', 'Olá! Sou o especialista de marketing do Zaponto. Como posso ajudar você hoje?', false, true);
-        }
-    }
-
     // Funções de utilidade para o histórico
     function saveMessages(messages) {
         const today = new Date().toISOString().split('T')[0];
