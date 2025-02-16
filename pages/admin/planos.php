@@ -20,6 +20,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $limite_mensagens = isset($_POST['mensagens_ilimitado']) ? -1 : $_POST['limite_mensagens'];
                 $stripe_price_id = $_POST['stripe_price_id'];
                 $tem_ia = isset($_POST['tem_ia']) ? 1 : 0;
+
+                // Desativa qualquer período de teste ativo
+    $stmt = $pdo->prepare("
+    UPDATE assinaturas 
+    SET status = 'inativo' 
+    WHERE usuario_id = ? 
+    AND is_trial = 1 
+    AND status = 'ativo'
+");
+$stmt->execute([$usuario_id]);
+
+// Insere a nova assinatura
+$stmt = $pdo->prepare("INSERT INTO planos (...) VALUES (...)");
                 
                 $stmt = $pdo->prepare("INSERT INTO planos (nome, preco, descricao, recursos, limite_leads, limite_mensagens, stripe_price_id, tem_ia, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
                 $stmt->execute([$nome, $preco, $descricao, $recursos, $limite_leads, $limite_mensagens, $stripe_price_id, $tem_ia]);

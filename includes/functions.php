@@ -30,6 +30,24 @@ function verificarNumeroExistente($pdo, $numero, $usuario_id) {
 
 
 function verificarPeriodoTeste($pdo, $usuario_id) {
+    // Primeiro verifica se existe uma assinatura ativa não-trial
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) 
+        FROM assinaturas 
+        WHERE usuario_id = ? 
+        AND status = 'ativo' 
+        AND is_trial = 0 
+        AND (data_fim IS NULL OR data_fim > NOW())
+    ");
+    $stmt->execute([$usuario_id]);
+    $tem_plano_ativo = $stmt->fetchColumn() > 0;
+
+    // Se já tem um plano ativo não-trial, retorna false
+    if ($tem_plano_ativo) {
+        return false;
+    }
+
+    // Caso contrário, verifica o período de teste
     $stmt = $pdo->prepare("
         SELECT 
             a.*,
@@ -46,15 +64,33 @@ function verificarPeriodoTeste($pdo, $usuario_id) {
 }
 
 function verificarAssinaturaAtiva($pdo, $usuario_id) {
+    // Primeiro tenta buscar uma assinatura não-trial ativa
     $stmt = $pdo->prepare("
         SELECT * FROM assinaturas 
         WHERE usuario_id = ? 
         AND status = 'ativo' 
-        AND (is_trial = 1 OR plano_id > 0)
+        AND is_trial = 0
         AND (data_fim IS NULL OR data_fim > NOW())
+        LIMIT 1
     ");
     $stmt->execute([$usuario_id]);
-    return $stmt->fetch(PDO::FETCH_ASSOC);
+    $assinatura = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Se não encontrou assinatura não-trial, busca assinatura trial
+    if (!$assinatura) {
+        $stmt = $pdo->prepare("
+            SELECT * FROM assinaturas 
+            WHERE usuario_id = ? 
+            AND status = 'ativo' 
+            AND is_trial = 1
+            AND data_fim > NOW()
+            LIMIT 1
+        ");
+        $stmt->execute([$usuario_id]);
+        $assinatura = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+    
+    return $assinatura;
 }
 
 function verificarLimitesUsuario($pdo, $usuario_id) {

@@ -7,14 +7,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const sendBtn = document.getElementById('ai-assistant-send');
     const toggleBtn = document.getElementById('ai-assistant-toggle');
 
-    // Inicialização do histórico
-    cleanOldMessages(); // Limpa mensagens antigas
-    loadChatHistory(); // Carrega o histórico do dia atual
-    
-    if (isNewDay()) {
-        clearChatHistory(); // Limpa o histórico se for um novo dia
-    }
-
     // Estado inicial
     let isWidgetOpen = false;
     let isProcessing = false;
@@ -30,14 +22,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const today = new Date().toISOString().split('T')[0];
         const savedMessages = localStorage.getItem(`chat_history_${today}`);
         return savedMessages ? JSON.parse(savedMessages) : [];
-    }
-
-    function clearChatHistory() {
-        const today = new Date().toISOString().split('T')[0];
-        localStorage.removeItem(`chat_history_${today}`);
-        messageHistory = [];
-        messagesContainer.innerHTML = '';
-        addMessage('assistant', 'Olá! Sou o assistente virtual do Zaponto. Como posso ajudar você hoje?');
     }
 
     function isNewDay() {
@@ -59,50 +43,50 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Função para carregar o histórico
+    function clearChatHistory() {
+        const today = new Date().toISOString().split('T')[0];
+        localStorage.removeItem(`chat_history_${today}`);
+        messageHistory = [];
+        messagesContainer.innerHTML = '';
+        showWelcomeMessage();
+    }
+
+    function showWelcomeMessage() {
+        addMessage('assistant', 'Olá! Sou o assistente virtual do Zaponto. Como posso ajudar você hoje?', false, true);
+    }
+
     function loadChatHistory() {
         messageHistory = loadMessages();
-        messagesContainer.innerHTML = ''; // Limpa o container
+        messagesContainer.innerHTML = '';
         
         if (messageHistory.length === 0) {
-            // Se não houver histórico, mostra a mensagem de boas-vindas
-            addMessage('assistant', 'Olá! Sou o assistente virtual do Zaponto. Como posso ajudar você hoje?');
+            showWelcomeMessage();
         } else {
-            // Se houver histórico, carrega todas as mensagens
             messageHistory.forEach(msg => {
-                addMessage(msg.type, msg.content);
+                addMessage(msg.type, msg.content, false, false);
             });
         }
     }
 
-    // Inicialização do histórico
+    // Inicialização única do histórico
     cleanOldMessages();
-    loadChatHistory();
+    messageHistory = loadMessages();
     
-    if (isNewDay()) {
+    if (isNewDay() || messageHistory.length === 0) {
         clearChatHistory();
+    } else {
+        loadChatHistory();
     }
 
-    // Event listener para limpar histórico
-    document.getElementById('clear-history').addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (confirm('Tem certeza que deseja limpar o histórico de hoje?')) {
-            clearChatHistory();
-        }
-    });
-
-    // Função para auto-ajustar altura do textarea
     function autoResizeTextarea(element) {
         element.style.height = 'auto';
         element.style.height = (element.scrollHeight) + 'px';
     }
 
-    // Inicializar textarea auto-resize
     promptInput.addEventListener('input', function() {
         autoResizeTextarea(this);
     });
 
-    // Toggle do widget
     function toggleWidget() {
         isWidgetOpen = !isWidgetOpen;
         widget.classList.toggle('ai-assistant-closed', !isWidgetOpen);
@@ -116,26 +100,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Função para rolar para última mensagem
     function scrollToBottom() {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // Função para adicionar mensagem
-    function addMessage(type, content, isLoading = false) {
+    function addMessage(type, content, isLoading = false, isWelcome = false) {
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', `${type}-message`);
         
         const messageContent = document.createElement('div');
         messageContent.classList.add('message-content');
 
-        if (!isLoading) {
-            messageHistory.push({
+        if (!isLoading && !isWelcome) {
+            const messageData = {
                 type: type,
                 content: content,
                 timestamp: new Date().toISOString()
-            });
-            saveMessages(messageHistory); // Salva no localStorage após cada mensagem
+            };
+            messageHistory.push(messageData);
+            saveMessages(messageHistory);
         }
 
         if (type === 'assistant') {
@@ -156,15 +139,6 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         } else {
             messageBubble.innerHTML = content;
-            
-            if (!isLoading) {
-                messageHistory.push({
-                    type: type,
-                    content: content,
-                    timestamp: new Date().toISOString()
-                });
-                saveMessages(messageHistory);
-            }
         }
 
         messageContent.appendChild(messageBubble);
@@ -175,20 +149,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return messageDiv;
     }
 
-    // Verificação de sessão
-    async function checkSession() {
-        try {
-            const response = await fetch('check_session.php');
-            const data = await response.json();
-            if (!data.authenticated) {
-                window.location.href = 'login.php';
-            }
-        } catch (error) {
-            console.error('Erro ao verificar sessão:', error);
-        }
-    }
-
-    // Função para enviar mensagem
     async function sendMessage() {
         if (isProcessing) return;
 
@@ -214,9 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loadingMessage.remove();
 
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Erro na resposta:', errorText);
-                throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const data = await response.json();
@@ -227,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(data.error || 'Erro desconhecido');
             }
         } catch (error) {
-            console.error('Erro detalhado:', error);
+            console.error('Erro:', error);
             addMessage('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.');
         } finally {
             isProcessing = false;
@@ -246,14 +204,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Detectar clique fora do widget
+    document.getElementById('clear-history').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (confirm('Tem certeza que deseja limpar o histórico de hoje?')) {
+            clearChatHistory();
+        }
+    });
+
     document.addEventListener('click', (e) => {
         if (isWidgetOpen && !widget.contains(e.target) && !floatingButton.contains(e.target)) {
             toggleWidget();
         }
     });
 
-    // Suporte a drag and drop
     widget.addEventListener('dragover', (e) => {
         e.preventDefault();
         widget.classList.add('drag-over');
@@ -273,7 +236,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Tratamento global de erros
 window.onerror = function(msg, url, lineNo, columnNo, error) {
     console.error('Erro:', {
         message: msg,
