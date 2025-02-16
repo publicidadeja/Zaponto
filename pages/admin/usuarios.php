@@ -34,22 +34,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             $stmt->execute([$nome, $email, $senha, $telefone, $plano_id, $status]);
             $_SESSION['mensagem'] = "Usuário adicionado com sucesso!";
         } else if ($_POST['acao'] === 'editar') {
-            $usuario_id = $_POST['usuario_id'];
-            if (!empty($_POST['senha'])) {
-                $senha = password_hash($_POST['senha'], PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, senha = ?, telefone = ?, plano_id = ?, status = ? WHERE id = ?");
-                $stmt->execute([$nome, $email, $senha, $telefone, $plano_id, $status, $usuario_id]);
-            } else {
-                $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, telefone = ?, plano_id = ?, status = ? WHERE id = ?");
-                $stmt->execute([$nome, $email, $telefone, $plano_id, $status, $usuario_id]);
+            try {
+                // Iniciar transação
+                $pdo->beginTransaction();
+                
+                $usuario_id = $_POST['usuario_id'];
+                
+                // Atualizar usuário
+                if (!empty($_POST['senha'])) {
+                    $senha = password_hash($_POST['senha'], PASSWORD_DEFAULT);
+                    $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, senha = ?, telefone = ?, plano_id = ?, status = ? WHERE id = ?");
+                    $stmt->execute([$nome, $email, $senha, $telefone, $plano_id, $status, $usuario_id]);
+                } else {
+                    $stmt = $pdo->prepare("UPDATE usuarios SET nome = ?, email = ?, telefone = ?, plano_id = ?, status = ? WHERE id = ?");
+                    $stmt->execute([$nome, $email, $telefone, $plano_id, $status, $usuario_id]);
+                }
+                
+                // Buscar detalhes do novo plano
+                $stmt = $pdo->prepare("SELECT * FROM planos WHERE id = ?");
+                $stmt->execute([$plano_id]);
+                $novo_plano = $stmt->fetch();
+                
+                // Desativar assinaturas ativas existentes
+                $stmt = $pdo->prepare("
+                    UPDATE assinaturas 
+                    SET status = 'inativo' 
+                    WHERE usuario_id = ? 
+                    AND status = 'ativo'
+                ");
+                $stmt->execute([$usuario_id]);
+                
+                // Inserir nova assinatura
+                $stmt = $pdo->prepare("
+                    INSERT INTO assinaturas (
+                        usuario_id, 
+                        plano_id, 
+                        status,
+                        data_inicio,
+                        proximo_pagamento
+                    ) VALUES (?, ?, 'ativo', NOW(), DATE_ADD(NOW(), INTERVAL 1 MONTH))
+                ");
+                $stmt->execute([
+                    $usuario_id,
+                    $plano_id
+                ]);
+                
+                $pdo->commit();
+                $_SESSION['mensagem'] = "Usuário atualizado com sucesso!";
+                
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $_SESSION['erro'] = "Erro ao atualizar usuário: " . $e->getMessage();
             }
-            $_SESSION['mensagem'] = "Usuário atualizado com sucesso!";
         }
     } catch (PDOException $e) {
         $_SESSION['erro'] = "Erro ao processar usuário: " . $e->getMessage();
     }
     header('Location: usuarios.php');
     exit;
+}
+
+function atualizarAssinaturaUsuario($pdo, $usuario_id, $novo_plano_id) {
+    try {
+        $pdo->beginTransaction();
+        
+        // Deactivate all current subscriptions
+        $stmt = $pdo->prepare("
+            UPDATE assinaturas 
+            SET status = 'inativo' 
+            WHERE usuario_id = ? 
+            AND status = 'ativo'
+        ");
+        $stmt->execute([$usuario_id]);
+        
+        // Create new subscription
+        $stmt = $pdo->prepare("
+            INSERT INTO assinaturas (
+                usuario_id, 
+                plano_id, 
+                status,
+                data_inicio,
+                proximo_pagamento
+            ) VALUES (?, ?, 'ativo', NOW(), DATE_ADD(NOW(), INTERVAL 1 MONTH))
+        ");
+        $stmt->execute([$usuario_id, $novo_plano_id]);
+        
+        $pdo->commit();
+        return true;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        return false;
+    }
 }
 
 // Buscar planos para o select

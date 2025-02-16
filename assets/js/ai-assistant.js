@@ -43,15 +43,29 @@ document.addEventListener('DOMContentLoaded', function() {
     async function saveMessages(messages) {
         try {
             const messageToSave = messages[messages.length - 1];
-            const response = await fetch('../includes/assistant.php', {
+            const response = await // Ao enviar mensagem do usuário
+            fetch('../includes/assistant.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     action: 'save',
-                    message: messageToSave.content,
-                    type: messageToSave.type // Adicionar o tipo da mensagem
+                    message: message,
+                    type: 'user'
+                })
+            });
+            
+            // Ao enviar resposta da IA
+            fetch('../includes/assistant.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'save',
+                    message: response,
+                    type: 'assistant'
                 })
             });
             const result = await response.json();
@@ -219,18 +233,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function sendMessage() {
         if (isProcessing || !hasAIAccess) return;
-
+    
         const prompt = promptInput.value.trim();
         if (!prompt) return;
-
+    
         isProcessing = true;
         promptInput.value = '';
         autoResizeTextarea(promptInput);
-
+    
         try {
+            // Salvar mensagem do usuário
+            await fetch('../includes/assistant.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'save',
+                    message: prompt,
+                    type: 'user'
+                })
+            });
+    
             addMessage('user', prompt);
             const loadingMessage = addMessage('assistant', '', true);
-
+    
             const response = await fetch('../pages/assistant_context_processor.php', {
                 method: 'POST',
                 headers: {
@@ -238,17 +265,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({ prompt: prompt })
             });
-
+    
             loadingMessage.remove();
-
+    
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-
+    
             const data = await response.json();
-
+    
             if (data && data.success) {
-                addMessage('assistant', data.content || data.message);
+                const aiResponse = data.content || data.message;
+                
+                // Salvar resposta da IA
+                await fetch('../includes/assistant.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'save',
+                        message: aiResponse,
+                        type: 'assistant'
+                    })
+                });
+    
+                addMessage('assistant', aiResponse);
             } else {
                 throw new Error(data.error || 'Erro desconhecido');
             }

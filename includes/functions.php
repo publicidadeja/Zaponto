@@ -94,14 +94,26 @@ function verificarAssinaturaAtiva($pdo, $usuario_id) {
 }
 
 function verificarLimitesUsuario($pdo, $usuario_id) {
-    $assinatura = verificarAssinaturaAtiva($pdo, $usuario_id);
+    $stmt = $pdo->prepare("
+        SELECT a.*, p.* 
+        FROM assinaturas a
+        JOIN planos p ON a.plano_id = p.id
+        WHERE a.usuario_id = ? 
+        AND a.status = 'ativo'
+        ORDER BY a.data_inicio DESC 
+        LIMIT 1
+    ");
+    $stmt->execute([$usuario_id]);
+    $assinatura = $stmt->fetch();
+    
     if (!$assinatura) {
         return false;
     }
+    
     return [
         'limite_leads' => $assinatura['limite_leads'],
         'limite_mensagens' => $assinatura['limite_mensagens'],
-        'tem_ia' => $assinatura['tem_ia']
+        'tem_ia' => (bool)$assinatura['tem_ia']
     ];
 }
 
@@ -184,7 +196,23 @@ function registrarExportacao($pdo, $admin_id, $tipo, $formato, $filtros = null) 
 }
 
 function verificarAcessoIA($pdo, $usuario_id) {
-    $limites = verificarLimitesUsuario($pdo, $usuario_id);
-    return isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
+    // Check active subscription
+    $stmt = $pdo->prepare("
+        SELECT a.*, p.tem_ia 
+        FROM assinaturas a
+        JOIN planos p ON a.plano_id = p.id
+        WHERE a.usuario_id = ? 
+        AND a.status = 'ativo'
+        ORDER BY a.data_inicio DESC 
+        LIMIT 1
+    ");
+    $stmt->execute([$usuario_id]);
+    $assinatura = $stmt->fetch();
+    
+    if (!$assinatura) {
+        return false;
+    }
+    
+    return (bool)$assinatura['tem_ia'];
 }
 ?>
