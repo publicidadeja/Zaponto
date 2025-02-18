@@ -96,34 +96,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo json_encode(['success' => false, 'error' => 'Usuário não autenticado']);
                     exit;
                 }
-
+        
                 $mensagem = $data['message'] ?? '';
                 $tipo = $data['type'] ?? 'user';
-
-                try {
-                    $stmt = $pdo->prepare("
-                        INSERT INTO assistant_chat_historico 
-                        (usuario_id, mensagem, tipo_mensagem, data_criacao) 
-                        VALUES (?, ?, ?, NOW())
-                    ");
-                    
-                    $stmt->execute([
-                        $_SESSION['usuario_id'],
-                        $mensagem,
-                        $tipo
-                    ]);
-
+        
+                $result = salvarMensagemAssistente($pdo, $_SESSION['usuario_id'], $mensagem, $tipo);
+                
+                if ($result) {
                     echo json_encode([
                         'success' => true,
                         'message' => 'Mensagem salva com sucesso'
                     ]);
-                } catch (PDOException $e) {
-                    error_log("Erro ao salvar mensagem: " . $e->getMessage());
+                } else {
                     echo json_encode([
                         'success' => false,
                         'error' => 'Erro ao salvar mensagem'
                     ]);
                 }
+                exit;
+                break;
+        
+            case 'clear':
+                if (!isset($_SESSION['usuario_id'])) {
+                    echo json_encode(['success' => false, 'error' => 'Usuário não autenticado']);
+                    exit;
+                }
+                $result = limparHistorico($pdo, $_SESSION['usuario_id']);
+                echo json_encode([
+                    'success' => $result,
+                    'message' => $result ? 'Histórico limpo com sucesso' : 'Erro ao limpar histórico'
+                ]);
+                exit;
+                break;
+        
+            case 'clean_old':
+                if (!isset($_SESSION['usuario_id'])) {
+                    echo json_encode(['success' => false, 'error' => 'Usuário não autenticado']);
+                    exit;
+                }
+                $result = limparMensagensAntigas($pdo);
+                echo json_encode([
+                    'success' => $result,
+                    'message' => $result ? 'Mensagens antigas removidas com sucesso' : 'Erro ao remover mensagens antigas'
+                ]);
                 exit;
                 break;
                 

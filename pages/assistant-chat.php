@@ -36,18 +36,18 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
                 </div>
             </div>
             <?php if ($tem_acesso_ia): ?>
-            <button id="clear-history" class="clear-history-button" title="Limpar histórico">
+            <button id="clear-history" class="clear-history-button" title="Limpar histórico" aria-label="Limpar histórico">
                 <i class="fas fa-trash"></i>
             </button>
             <?php endif; ?>
-            <button id="ai-assistant-toggle" class="close-button">×</button>
+            <button id="ai-assistant-toggle" class="close-button" aria-label="Fechar assistente">×</button>
         </div>
 
         <div class="ai-assistant-body">
-            <div id="ai-assistant-messages">
+            <div id="ai-assistant-messages" aria-live="polite">
                 <?php if (!$tem_acesso_ia): ?>
                 <!-- Mensagem para usuários sem acesso à IA -->
-                <div class="message assistant-message">
+                <div class="message assistant-message" role="alert">
                     <div class="message-content">
                         <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png" class="assistant-avatar">
                         <div class="message-bubble">
@@ -73,7 +73,7 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
             <?php if ($tem_acesso_ia): ?>
             <div class="ai-assistant-input">
                 <textarea id="ai-assistant-prompt" placeholder="Digite sua mensagem..." rows="1"></textarea>
-                <button id="ai-assistant-send">
+                <button id="ai-assistant-send" aria-label="Enviar mensagem">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>
@@ -85,6 +85,7 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
 
 <style>
 
+/* Estilos gerais */
 .upgrade-button {
     display: inline-block;
     background-color: #0098fc;
@@ -98,8 +99,8 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
 
 .upgrade-button:hover {
     background-color: #0076c4;
-    text-decoration: none;
-    color: white;
+    text-decoration: none; /* Redundante, mas garante que o estilo seja aplicado */
+    color: white; /* Redundante, mas garante que o estilo seja aplicado */
 }
 
 .clear-history-button {
@@ -115,7 +116,7 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
 }
 
 .clear-history-button:hover {
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
 }
 
 #ai-assistant-widget {
@@ -126,6 +127,7 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
     font-family: 'Arial', sans-serif;
 }
 
+/* Indicador de digitação */
 .typing-indicator {
     display: flex;
     gap: 4px;
@@ -140,20 +142,30 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
     animation: bounce 1.3s linear infinite;
 }
 
-.typing-indicator span:nth-child(2) { animation-delay: 0.15s; }
-.typing-indicator span:nth-child(3) { animation-delay: 0.3s; }
-
-@keyframes bounce {
-    0%, 60%, 100% { transform: translateY(0); }
-    30% { transform: translateY(-4px); }
+.typing-indicator span:nth-child(2) {
+    animation-delay: 0.15s;
 }
 
+.typing-indicator span:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes bounce {
+    0%, 60%, 100% {
+        transform: translateY(0);
+    }
+    30% {
+        transform: translateY(-4px);
+    }
+}
+
+/* Botão flutuante */
 #ai-assistant-floating-button {
     width: 60px;
     height: 60px;
     border-radius: 50%;
     background: #0098fc;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -170,6 +182,7 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
     height: 35px;
 }
 
+/* Container principal do assistente */
 .ai-assistant-container {
     position: absolute;
     bottom: 80px;
@@ -178,7 +191,7 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
     height: 600px;
     background: white;
     border-radius: 20px;
-    box-shadow: 0 5px 25px rgba(0,0,0,0.1);
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -188,6 +201,7 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
     pointer-events: none;
 }
 
+/* Estados de aberto e fechado */
 .ai-assistant-closed .ai-assistant-container {
     opacity: 0;
     transform: translateY(20px);
@@ -200,6 +214,7 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
     pointer-events: all;
 }
 
+/* Cabeçalho do assistente */
 .ai-assistant-header {
     padding: 20px;
     background: linear-gradient(135deg, #0098fc, #003d64);
@@ -255,9 +270,10 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
 }
 
 .close-button:hover {
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
 }
 
+/* Corpo do assistente */
 .ai-assistant-body {
     flex: 1;
     display: flex;
@@ -295,8 +311,10 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
     border-radius: 3px;
 }
 
+/* Estilos das mensagens */
 .message {
     margin-bottom: 20px;
+     /*  display: flex;  Removido:  display flex já está no message-content */
 }
 
 .message-content {
@@ -312,15 +330,15 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
 }
 
 .message-bubble {
-    background: white;
     padding: 12px 16px;
     border-radius: 15px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
     max-width: 90%;
     line-height: 1.5;
     white-space: pre-line;
 }
 
+/* Estilos de formatação dentro da bolha de mensagem */
 .message-bubble strong,
 .message-bubble b {
     font-weight: 600;
@@ -345,18 +363,33 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
 .message-bubble hr {
     margin: 12px 0;
     border: none;
-    border-top: 1px solid rgba(0,0,0,0.1);
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
+/* Mensagens do usuário */
 .user-message .message-content {
-    flex-direction: row-reverse;
+    justify-content: flex-end; /* Alinha o conteúdo da mensagem do usuário à direita */
 }
 
 .user-message .message-bubble {
     background: #0098fc;
     color: white;
+    margin-left: auto; /* Empurra a bolha para a direita */
+    order: 2;       /*  Garante que fique a direita mesmo se tiver avatar */
 }
 
+.user-message .assistant-avatar {
+    order: 1; /*  Mantem o avatar a esquerda, se existir */
+}
+
+/* Mensagens do assistente */
+.assistant-message .message-bubble {
+    background-color: white;
+    margin-right: auto; /* Empurra a bolha para a esquerda */
+}
+
+
+/* Área de input */
 .ai-assistant-input {
     margin-top: 20px;
     display: flex;
@@ -364,7 +397,7 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
     background: white;
     padding: 15px;
     border-radius: 15px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 }
 
 #ai-assistant-prompt {
@@ -395,48 +428,21 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
     transform: scale(1.1);
 }
 
+/* Media queries para responsividade */
 @media (max-width: 480px) {
     .ai-assistant-container {
-    position: absolute;
-    bottom: 80px;
-    right: 0;
-    width: 380px;
-    height: 600px;
-    background: white;
-    border-radius: 20px;
-    box-shadow: 0 5px 25px rgba(0,0,0,0.1);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    transition: all 0.3s ease;
-    opacity: 0;
-    transform: translateY(20px);
-    pointer-events: none;
-}
+        width: 380px;
+    }
+
     #ai-assistant-floating-button {
         width: 50px;
         height: 50px;
     }
-    
+
     #ai-assistant-floating-button img {
         width: 30px;
         height: 30px;
     }
-}
-
-.user-message .message-content {
-    justify-content: flex-end;
-}
-
-.user-message .message-bubble {
-    background-color: #0098fc;
-    color: white;
-    margin-left: auto;
-}
-
-.assistant-message .message-bubble {
-    background-color: white;
-    margin-right: auto;
 }
 
 
