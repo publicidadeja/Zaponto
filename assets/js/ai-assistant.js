@@ -1,49 +1,47 @@
+// ../assets/js/ai-assistant.js
+
 document.addEventListener('DOMContentLoaded', function () {
-    // Elementos DOM
+
+    // -- Constantes e Variáveis Globais --
+    const API_ENDPOINT = '../pages/assistant_context_processor.php';
+    const HISTORY_ENDPOINT = '../includes/assistant.php';
+    const ICON_URL = 'https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png'; // URL do ícone
+
+    // Elementos DOM (selecionados uma vez)
     const widget = document.getElementById('ai-assistant-widget');
     const floatingButton = document.getElementById('ai-assistant-floating-button');
     const messagesContainer = document.getElementById('ai-assistant-messages');
     const promptInput = document.getElementById('ai-assistant-prompt');
     const sendBtn = document.getElementById('ai-assistant-send');
     const toggleBtn = document.getElementById('ai-assistant-toggle');
+    const clearHistoryBtn = document.getElementById('clear-history'); // Botão de limpar histórico
 
-    // Verifica se o usuário tem acesso à IA (definido no PHP)
-    const hasAIAccess = window.hasAIAccess || false;
-
-    // Estado inicial
+    // Estado do Widget
     let isWidgetOpen = false;
     let isProcessing = false;
 
-    // Inicializa o chat
+    // -- Inicialização --
     initializeChat();
 
     async function initializeChat() {
         try {
-            await loadChatHistory();
+            await loadChatHistory(); // Carrega o histórico
         } catch (error) {
-            console.error('Erro ao inicializar chat:', error);
+            console.error('Erro ao inicializar o chat:', error);
             showWelcomeMessage(); // Mostra mensagem de boas-vindas em caso de erro
         }
-        setupUI(); // Configura a UI depois de carregar o histórico (ou em caso de erro)
+        setupUI(); // Configura a interface
     }
 
     function setupUI() {
-        // Se não tiver acesso à IA, desabilita a entrada de texto e o botão de envio
-        if (!hasAIAccess) {
-            if (promptInput) {
-                promptInput.disabled = true;
-                promptInput.placeholder = "Acesso à IA não disponível no seu plano";
-            }
-            if (sendBtn) {
-                sendBtn.disabled = true;
-            }
-
-            // Remove o botão de limpar histórico se existir
-            const clearHistoryBtn = document.getElementById('clear-history');
+        // Desabilita input e botão se não tiver acesso à IA
+        if (!window.hasAIAccess) {
+            promptInput.disabled = true;
+            promptInput.placeholder = "Acesso à IA não disponível no seu plano.";
+            sendBtn.disabled = true;
             if (clearHistoryBtn) {
-                clearHistoryBtn.style.display = 'none';
+                clearHistoryBtn.style.display = 'none'; // Esconde o botão de limpar
             }
-
             // Esconde a área de input
             const inputArea = document.querySelector('.ai-assistant-input');
             if (inputArea) {
@@ -52,32 +50,28 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Funções auxiliares para adicionar mensagens (refatoradas)
+    // -- Funções Auxiliares --
+
+    // Cria um elemento de mensagem (refatorada para maior flexibilidade)
     function createMessageElement(type, content, isLoading = false) {
         const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message');
-        messageDiv.classList.add(type === 'user' ? 'user-message' : 'assistant-message');
+        messageDiv.classList.add('message', type === 'user' ? 'user-message' : 'assistant-message');
 
         const messageContent = document.createElement('div');
         messageContent.classList.add('message-content');
 
         if (type !== 'user') {
             const avatar = document.createElement('img');
-            avatar.src = 'https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png';
+            avatar.src = ICON_URL;
             avatar.classList.add('assistant-avatar');
-            messageContent.appendChild(avatar); // Adiciona o avatar diretamente ao messageContent
+            messageContent.appendChild(avatar);
         }
 
         const messageBubble = document.createElement('div');
         messageBubble.classList.add('message-bubble');
 
         if (isLoading) {
-            messageBubble.textContent = ''; // Mantém o bubble vazio, mas com a estrutura
-            const typingIndicator = document.createElement('div');
-            typingIndicator.classList.add('typing-indicator');
-            typingIndicator.innerHTML = '<span></span><span></span><span></span>'; // Adiciona o indicador como innerHTML
-            messageBubble.appendChild(typingIndicator);
-
+            messageBubble.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
         } else {
             messageBubble.textContent = content; // Usa textContent para segurança
         }
@@ -87,204 +81,181 @@ document.addEventListener('DOMContentLoaded', function () {
         return messageDiv;
     }
 
+    // Adiciona uma mensagem à interface (simplificada)
     function addMessageToUI(type, content, isLoading = false) {
         const messageElement = createMessageElement(type, content, isLoading);
         messagesContainer.appendChild(messageElement);
-        scrollToBottom();
-        return messageElement;
+        scrollToBottom(); // Rola para baixo
     }
 
-
-    // Funções de histórico (AJAX)
-    async function saveMessage(message, type) {
-        try {
-            const response = await fetch('../includes/assistant.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    action: 'save',
-                    message: message,
-                    type: type
-                })
-            });
-            const result = await response.json();
-            if (!result.success) {
-                console.error('Erro ao salvar mensagem:', result.error);
-            }
-            return result; // Retorna o resultado para possível uso futuro
-        } catch (error) {
-            console.error('Erro ao salvar mensagem:', error);
-            return { success: false, error: error.message }; // Retorna um objeto de erro
-        }
-    }
-
-
-    async function loadChatHistory() {
-        try {
-            const response = await fetch('../includes/assistant.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ action: 'load' })
-            });
-
-            const result = await response.json();
-
-            if (result && result.success && Array.isArray(result.messages)) {
-                messagesContainer.innerHTML = ''; // Limpa o container antes de adicionar as mensagens
-
-                if (result.messages.length === 0) {
-                    showWelcomeMessage();
-                } else {
-                    result.messages.forEach(msg => {
-                        const messageType = (msg.tipo_mensagem || msg.type || '').toLowerCase();
-                        if (['user', 'assistant'].includes(messageType) && msg.mensagem) {
-                            addMessageToUI(messageType, msg.mensagem);
-                        }
-                    });
-                }
-            } else {
-                console.error('Erro ao carregar mensagens:', result);
-                showWelcomeMessage(); // Mostra mensagem de boas-vindas em caso de erro
-            }
-        } catch (error) {
-            console.error('Erro ao carregar histórico:', error);
-            showWelcomeMessage(); // Mostra mensagem de boas-vindas em caso de erro
-        }
-    }
-
-
-    async function clearChatHistory() {
-        try {
-            const response = await fetch('../includes/assistant.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ action: 'clear' })
-            });
-
-            if (response.ok) {
-                messagesContainer.innerHTML = ''; // Limpa o container
-                showWelcomeMessage();
-            } else {
-                console.error('Erro ao limpar histórico:', await response.text()); // Log do erro
-            }
-        } catch (error) {
-            console.error('Erro ao limpar histórico:', error);
-        }
-    }
-
+    // Mostra a mensagem de boas-vindas
     function showWelcomeMessage() {
-        if (hasAIAccess) {
+        if (window.hasAIAccess) {
             addMessageToUI('assistant', 'Olá! Sou o especialista de marketing do Zaponto. Como posso ajudar você hoje?');
-        } // Não precisa mais do else, pois a mensagem de "sem acesso" é mostrada estaticamente no HTML
-    }
-
-
-    function autoResizeTextarea(element) {
-        element.style.height = 'auto';
-        element.style.height = (element.scrollHeight) + 'px';
-    }
-
-    function toggleWidget() {
-        isWidgetOpen = !isWidgetOpen;
-        widget.classList.toggle('ai-assistant-closed', !isWidgetOpen);
-
-        if (isWidgetOpen) {
-            floatingButton.style.display = 'none';
-            promptInput.focus();
-            scrollToBottom();
-        } else {
-            floatingButton.style.display = 'flex';
         }
     }
 
+    // Rola a área de mensagens para baixo
     function scrollToBottom() {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
+    // Redimensiona o textarea automaticamente
+    function autoResizeTextarea() {
+        promptInput.style.height = 'auto';
+        promptInput.style.height = promptInput.scrollHeight + 'px';
+    }
+
+    // Alterna a visibilidade do widget
+    function toggleWidget() {
+        isWidgetOpen = !isWidgetOpen;
+        widget.classList.toggle('ai-assistant-closed', !isWidgetOpen);
+        floatingButton.style.display = isWidgetOpen ? 'none' : 'flex';
+        if (isWidgetOpen) {
+            promptInput.focus();
+            scrollToBottom();
+        }
+    }
+
+    // -- Funções de Histórico (AJAX) --
+
+    // Função genérica para requisições AJAX (refatorada)
+    async function makeRequest(url, data) {
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Erro na requisição: ${response.status} - ${errorText}`);
+            }
+
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.error || 'Erro desconhecido na resposta.');
+            }
+
+            return result; // Retorna os dados em caso de sucesso
+
+        } catch (error) {
+            console.error('Erro na requisição:', error);
+            throw error; // Propaga o erro
+        }
+    }
+
+    // Salva uma mensagem
+    async function saveMessage(message, type) {
+        return makeRequest(HISTORY_ENDPOINT, { action: 'save', message, type });
+    }
+
+    // Carrega o histórico do chat
+    async function loadChatHistory() {
+        const result = await makeRequest(HISTORY_ENDPOINT, { action: 'load' });
+        if (result && result.messages) {
+            messagesContainer.innerHTML = ''; // Limpa o container
+            if (result.messages.length === 0) {
+                showWelcomeMessage();
+            } else {
+                result.messages.forEach(msg => {
+                    const messageType = (msg.tipo_mensagem || msg.type || '').toLowerCase();
+                    if (['user', 'assistant'].includes(messageType) && msg.mensagem) {
+                        addMessageToUI(messageType, msg.mensagem);
+                    }
+                });
+            }
+        }
+    }
+
+    // Limpa o histórico do chat
+    async function clearChatHistory() {
+        try {
+            await makeRequest(HISTORY_ENDPOINT, { action: 'clear' });
+            messagesContainer.innerHTML = ''; // Limpa o container
+            showWelcomeMessage();
+        } catch (error) {
+            console.error('Erro ao limpar o histórico:', error); // Já tratado no makeRequest
+        }
+    }
+
+    // -- Função Principal de Envio de Mensagem --
+
     async function sendMessage() {
-        if (isProcessing || !hasAIAccess) return;
+        if (isProcessing || !window.hasAIAccess) return;
 
         const prompt = promptInput.value.trim();
         if (!prompt) return;
 
         isProcessing = true;
         promptInput.value = '';
-        autoResizeTextarea(promptInput);
+        autoResizeTextarea();
 
-        addMessageToUI('user', prompt); // Adiciona a mensagem do usuário imediatamente
-        const loadingMessage = addMessageToUI('assistant', '', true); // Adiciona o indicador de carregamento
+        addMessageToUI('user', prompt);
+        const loadingMessage = addMessageToUI('assistant', '', true);
 
         try {
-            const response = await fetch('../pages/assistant_context_processor.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ prompt: prompt })
-            });
+            const data = await makeRequest(API_ENDPOINT, { prompt }); // Usa a função makeRequest
 
+            const aiResponse = data.content || 'Desculpe, não consegui entender.'; // Mensagem padrão
+            loadingMessage.remove();
+            addMessageToUI('assistant', aiResponse);
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            if (data && data.success) {
-                const aiResponse = data.content || data.message; // Pega a resposta da API
-                loadingMessage.remove(); // Remove o indicador de carregamento
-                addMessageToUI('assistant', aiResponse); // Adiciona a resposta da IA
-
-                // Salva AMBAS as mensagens (usuário e assistente) AGORA
-                await saveMessage(prompt, 'user');
-                await saveMessage(aiResponse, 'assistant');
-
-            } else {
-                loadingMessage.remove(); // Remove o indicador de carregamento
-                addMessageToUI('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem.  A resposta da API não foi bem-sucedida.'); // Mensagem de erro mais específica
-                throw new Error(data.error || 'Erro desconhecido');
-            }
+            // Salva as mensagens (usuário e assistente)
+            await saveMessage(prompt, 'user');
+            await saveMessage(aiResponse, 'assistant');
 
         } catch (error) {
-            console.error('Erro:', error);
-            loadingMessage.remove(); // Remove o indicador de carregamento em caso de erro
-            addMessageToUI('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.'); // Mensagem de erro genérica
+            loadingMessage.remove();
+            addMessageToUI('assistant', 'Desculpe, ocorreu um erro ao processar sua mensagem.'); // Mensagem genérica
+            // Erro já tratado no makeRequest
         } finally {
             isProcessing = false;
             scrollToBottom();
         }
     }
 
-    // Event listeners
+    // -- Event Listeners --
+
+    // Clique no botão flutuante
     floatingButton.addEventListener('click', toggleWidget);
+
+    // Clique no botão de fechar
     toggleBtn.addEventListener('click', toggleWidget);
+
+    // Clique no botão de enviar
     sendBtn.addEventListener('click', sendMessage);
+
+    // Pressionar Enter no textarea
     promptInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
         }
     });
+    promptInput.addEventListener('input', autoResizeTextarea); //Redimensiona ao digitar
 
-    document.getElementById('clear-history').addEventListener('click', function (e) {
-        e.stopPropagation(); // Impede que o evento de clique se propague para o documento
-        if (confirm('Tem certeza que deseja limpar o histórico de hoje?')) {
-            clearChatHistory();
-        }
-    });
+    // Clique no botão de limpar histórico
+    if (clearHistoryBtn) { // Verifica se o botão existe
+        clearHistoryBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm('Tem certeza que deseja limpar o histórico de hoje?')) {
+                clearChatHistory();
+            }
+        });
+    }
 
+    // Fechar o widget ao clicar fora
     document.addEventListener('click', (e) => {
         if (isWidgetOpen && !widget.contains(e.target) && !floatingButton.contains(e.target)) {
             toggleWidget();
         }
     });
 
+    // Tratamento de Drag and Drop (opcional)
     widget.addEventListener('dragover', (e) => {
         e.preventDefault();
         widget.classList.add('drag-over');
@@ -303,9 +274,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Tratamento de erros global (opcional, mas recomendado)
+    // Tratamento de Erros Global (opcional, mas recomendado)
     window.onerror = function (msg, url, lineNo, columnNo, error) {
-        console.error('Erro:', { message: msg, url: url, lineNo: lineNo, columnNo: columnNo, error: error });
-        return false; // Impede que o erro seja exibido no console do navegador (mas ainda o registra)
+        console.error('Erro global:', { message: msg, url: url, lineNo: lineNo, columnNo: columnNo, error: error });
+        return false; // Impede o comportamento padrão do navegador
     };
 });
