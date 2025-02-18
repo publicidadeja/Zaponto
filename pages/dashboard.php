@@ -9,8 +9,6 @@ $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
 $stmt->execute([$_SESSION['usuario_id']]);
 $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 
-
-
 // Verificação mais segura
 if (!isset($usuario['perfil_completo']) || $usuario['perfil_completo'] == 0 || $usuario['perfil_completo'] == null) {
     include '../includes/modal_perfil.php';
@@ -111,7 +109,7 @@ $extra_css = '
     .metric-description i {
         color: var(--primary-color);
     }
-    
+
     .progress {
         height: 10px;
         background-color: #e9ecef;
@@ -138,7 +136,7 @@ $extra_css = '
         .container {
             padding: 1rem;
         }
-        
+
         .main-content {
             padding: 1.5rem;
         }
@@ -147,11 +145,15 @@ $extra_css = '
             padding: 1.5rem;
         }
         .progress {
-            height: 8px; /* Ajuste para telas menores */
+            height: 8px;
+        }
+         .col-lg-4 { /* Ajuste para 3 colunas em telas médias */
+            flex: 0 0 100%;
+            max-width: 100%;
         }
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 767px) {
         .dashboard-header {
             flex-direction: column;
             align-items: flex-start;
@@ -166,15 +168,19 @@ $extra_css = '
             font-size: 2rem;
         }
         .progress {
-            height: 7px;  /* Ajuste para telas menores */
+            height: 7px;
+        }
+        .col-md-6 { /* Ajuste para 1 coluna em telas pequenas */
+            flex: 0 0 100%;
+            max-width: 100%;
         }
     }
 
-    @media (max-width: 576px) {
+    @media (max-width: 575px) {
         .container {
             padding: 0.5rem;
         }
-        
+
         .main-content {
             padding: 1rem;
         }
@@ -187,7 +193,7 @@ $extra_css = '
             font-size: 1.75rem;
         }
         .progress {
-            height: 6px; /* Ajuste para telas menores */
+            height: 6px;
         }
     }
 </style>';
@@ -268,7 +274,8 @@ include '../includes/header.php';
         </div>
 
         <div class="row g-4">
-            <div class="col-12 col-md-6 col-lg-3">
+            <!-- Primeira Linha -->
+            <div class="col-12 col-md-6 col-lg-4">
                 <div class="metric-card">
                     <h3>Total de Leads</h3>
                     <div class="metric-value"><?php echo number_format($total_leads); ?></div>
@@ -276,7 +283,7 @@ include '../includes/header.php';
                 </div>
             </div>
 
-            <div class="col-12 col-md-6 col-lg-3">
+            <div class="col-12 col-md-6 col-lg-4">
                 <div class="metric-card">
                     <h3>Envios em Massa</h3>
                     <div class="metric-value">
@@ -288,11 +295,11 @@ include '../includes/header.php';
                 </div>
             </div>
 
-            <div class="col-12 col-md-6 col-lg-3">
+            <div class="col-12 col-md-6 col-lg-4">
                 <div class="metric-card">
                     <h3>Último Envio</h3>
                     <div class="metric-value">
-                        <?php 
+                        <?php
                         if ($ultimo_envio) {
                             echo date('d/m/Y H:i', strtotime($ultimo_envio));
                         } else {
@@ -306,7 +313,8 @@ include '../includes/header.php';
                 </div>
             </div>
 
-            <div class="col-12 col-md-6 col-lg-3">
+            <!-- Segunda Linha -->
+            <div class="col-12 col-md-6 col-lg-4">
                 <div class="metric-card">
                     <h3>Lead Recente</h3>
                     <div class="metric-value">
@@ -316,8 +324,7 @@ include '../includes/header.php';
                 </div>
             </div>
 
-            <!-- Card de Limite de Mensagens -->
-            <div class="col-12 col-md-6 col-lg-3">
+            <div class="col-12 col-md-6 col-lg-4">
                 <div class="metric-card">
                     <h3>Limite de Mensagens</h3>
                      <div class="metric-value">
@@ -327,11 +334,11 @@ include '../includes/header.php';
                         <i class="fas fa-envelope"></i> Mensagens restantes
                     </p>
                     <div class="progress">
-                        <div class="progress-bar <?php echo $percentual_usado > 80 ? 'bg-warning' : 'bg-success'; ?>" 
-                             role="progressbar" 
-                             style="width: <?php echo $percentual_usado; ?>%" 
-                             aria-valuenow="<?php echo $percentual_usado; ?>" 
-                             aria-valuemin="0" 
+                        <div class="progress-bar <?php echo $percentual_usado > 80 ? 'bg-warning' : 'bg-success'; ?>"
+                             role="progressbar"
+                             style="width: <?php echo $percentual_usado; ?>%"
+                             aria-valuenow="<?php echo $percentual_usado; ?>"
+                             aria-valuemin="0"
                              aria-valuemax="100">
                         </div>
                     </div>
@@ -343,8 +350,7 @@ include '../includes/header.php';
                 </div>
             </div>
 
-            <!-- Card de Histórico de Envios -->
-            <div class="col-12 col-md-6 col-lg-3">
+            <div class="col-12 col-md-6 col-lg-4">
                 <div class="metric-card">
                     <h3>Histórico de Envios</h3>
                     <div class="metric-value">
@@ -373,7 +379,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('formPerfil').addEventListener('submit', function(e) {
         e.preventDefault();
-        
+
         fetch('../ajax/salvar_perfil.php', {
             method: 'POST',
             body: new FormData(this)
@@ -404,7 +410,7 @@ function debug_query($pdo) {
     ");
     $stmt->execute([$_SESSION['usuario_id']]);
     $debug = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     error_log("Debug Dashboard - Total Envios: " . $debug['total'] . " - Último Envio: " . $debug['ultimo_envio']);
 }
 

@@ -230,14 +230,18 @@ $dispositivos = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <div class="row">
             <!-- Conteúdo Principal -->
             <div class="col-md-12">
-                <?php if (isset($_SESSION['mensagem'])): ?>
-                    <div class="alert alert-success">
-                        <?php 
-                        echo htmlspecialchars($_SESSION['mensagem']);
-                        unset($_SESSION['mensagem']);
-                        ?>
-                    </div>
-                <?php endif; ?>
+            <?php if (isset($_SESSION['mensagem'])): ?>
+    <div class="alert alert-success">
+        <?php 
+        if (is_array($_SESSION['mensagem'])) {
+            echo htmlspecialchars(implode(' ', $_SESSION['mensagem']));
+        } else {
+            echo htmlspecialchars($_SESSION['mensagem']);
+        }
+        unset($_SESSION['mensagem']);
+        ?>
+    </div>
+<?php endif; ?>
 
                 <div class="table-container">
                     <div class="d-flex justify-content-between align-items-center mb-4">

@@ -28,6 +28,46 @@ if (!isset($_SESSION['usuario_id'])) {
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
 
+// verificação de limites
+$verificacao = verificarLimitesEnvio($pdo, $_SESSION['usuario_id']);
+
+if (!$verificacao['pode_enviar']) {
+    // Se não puder enviar, mostra mensagem de erro
+    $mensagem = [
+        'tipo' => 'error',
+        'texto' => sprintf(
+            'Você atingiu o limite de envios do seu plano (%d mensagens). 
+             Entre em contato com o suporte para aumentar seu limite.',
+            $verificacao['limite_total']
+        )
+    ];
+    
+    // Se for uma requisição AJAX
+    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+        echo json_encode(['status' => 'error', 'message' => $mensagem['texto']]);
+        exit;
+    }
+    
+    // Se for uma requisição normal
+    $_SESSION['mensagem'] = $mensagem;
+    header('Location: dashboard.php');
+    exit;
+}
+
+// Se ainda tiver envios disponíveis mas estiver próximo do limite (80%)
+if ($verificacao['restantes'] <= ($verificacao['limite_total'] * 0.2)) {
+    $mensagem = [
+        'tipo' => 'warning',
+        'texto' => sprintf(
+            'Atenção: Você tem apenas %d envios restantes de um total de %d.',
+            $verificacao['restantes'],
+            $verificacao['limite_total']
+        )
+    ];
+    
+    $_SESSION['mensagem'] = $mensagem;
+}
+
 //--------------------------------------------------
 // Funções Auxiliares
 //--------------------------------------------------
@@ -189,29 +229,81 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $filePath = '';
 
     try {
-        $filePath = processarUploadArquivo();
-        $dispositivo_id = $_POST['dispositivo_id'] ?? null; // Use null coalescing
+        // Verificar limites de envio considerando quantidade de leads
+        $verificacao = verificarLimitesEnvio($pdo, $_SESSION['usuario_id']);
+        $dispositivo_id = $_POST['dispositivo_id'] ?? null;
         $mensagem = $_POST['mensagem'] ?? null;
         $selected_leads = $_POST['selected_leads'] ?? [];
+        
+        // Verificar quantidade de leads vs limites disponíveis
+        $total_leads = count($selected_leads);
+        if ($total_leads > $verificacao['restantes']) {
+            throw new Exception(sprintf(
+                'Você não tem mensagens suficientes disponíveis. Necessário: %d, Disponível: %d',
+                $total_leads,
+                $verificacao['restantes']
+            ));
+        }
 
+        // Validar dados do envio
         $sendErrors = validarDadosEnvio($dispositivo_id, $mensagem, $selected_leads);
 
         if (empty($sendErrors)) {
+            // Processar upload de arquivo se houver
+            $filePath = processarUploadArquivo();
+            
+            // Criar fila de mensagens
             criarFilaMensagens($pdo, $_SESSION['usuario_id'], $dispositivo_id, $mensagem, $filePath, $selected_leads);
+            
+            // Iniciar processamento assíncrono
             iniciarProcessamentoAssincrono($_SESSION['usuario_id'], $dispositivo_id);
 
             $_SESSION['mensagem'] = "Envio iniciado! As mensagens serão enviadas em segundo plano.";
-            // Removido o redirecionamento e exit
         }
     } catch (Exception $e) {
         error_log("Erro ao criar fila de envio: " . $e->getMessage());
-        $_SESSION['mensagem'] = "Envio iniciado! As mensagens serão enviadas em segundo plano.";
-        // Não adiciona a mensagem de erro a $sendErrors
+        $sendErrors[] = $e->getMessage();
+        
+        // Se for erro de limite, adiciona mensagem específica
+        if (strpos($e->getMessage(), 'mensagens suficientes') !== false) {
+            $_SESSION['mensagem'] = [
+                'tipo' => 'error',
+                'texto' => $e->getMessage()
+            ];
+        } else {
+            $_SESSION['mensagem'] = [
+                'tipo' => 'error',
+                'texto' => "Erro ao processar o envio. Por favor, tente novamente."
+            ];
+        }
     }
 
+    // Se houver erros de validação
     if (!empty($sendErrors)) {
         $_SESSION['erros_envio'] = $sendErrors;
     }
+
+    // Se for requisição AJAX
+    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+        $response = [
+            'status' => empty($sendErrors) ? 'success' : 'error',
+            'message' => empty($sendErrors) ? 
+                "Envio iniciado com sucesso!" : 
+                implode(", ", $sendErrors)
+        ];
+        
+        header('Content-Type: application/json');
+        echo json_encode($response);
+        exit;
+    }
+
+    // Se for requisição normal, redireciona
+    if (empty($sendErrors)) {
+        header('Location: ' . $_SERVER['PHP_SELF'] . '?success=1');
+    } else {
+        header('Location: ' . $_SERVER['PHP_SELF'] . '?error=1');
+    }
+    exit;
 }
 
 //--------------------------------------------------
@@ -569,10 +661,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                     <!-- Exibição de mensagens e erros -->
                     <?php if (isset($_SESSION['mensagem'])): ?>
-                        <div class="alert alert-success">
-                            <?= $_SESSION['mensagem']; unset($_SESSION['mensagem']); ?>
-                        </div>
-                    <?php endif; ?>
+    <div class="alert alert-<?php echo $_SESSION['mensagem']['tipo'] == 'error' ? 'danger' : $_SESSION['mensagem']['tipo']; ?> alert-dismissible fade show" role="alert">
+        <?php echo $_SESSION['mensagem']['texto']; ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    <?php unset($_SESSION['mensagem']); ?>
+<?php endif; ?>
 
                     <?php if (!empty($sendErrors)): ?>
                         <div class="alert alert-danger">
