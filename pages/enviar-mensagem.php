@@ -1,3 +1,11 @@
+<?php if (isset($_SESSION['mensagem'])): ?>
+    <div class="alert alert-<?php echo $_SESSION['mensagem']['tipo'] == 'error' ? 'danger' : $_SESSION['mensagem']['tipo']; ?> alert-dismissible fade show" role="alert">
+        <?php echo $_SESSION['mensagem']['texto']; ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    <?php unset($_SESSION['mensagem']); ?>
+<?php endif; ?>
+
 <?php
 session_start();
 if (!isset($_SESSION['usuario_id'])) {
@@ -7,6 +15,46 @@ if (!isset($_SESSION['usuario_id'])) {
 
 include '../includes/db.php';
 include '../includes/functions.php';
+
+//após a verificação de sessão
+$verificacao = verificarLimitesEnvio($pdo, $_SESSION['usuario_id']);
+
+if (!$verificacao['pode_enviar']) {
+    // Se não puder enviar, mostra mensagem de erro
+    $mensagem = [
+        'tipo' => 'error',
+        'texto' => sprintf(
+            'Você atingiu o limite de envios do seu plano (%d mensagens). 
+             Entre em contato com o suporte para aumentar seu limite.',
+            $verificacao['limite_total']
+        )
+    ];
+    
+    // Se for uma requisição AJAX
+    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+        echo json_encode(['status' => 'error', 'message' => $mensagem['texto']]);
+        exit;
+    }
+    
+    // Se for uma requisição normal
+    $_SESSION['mensagem'] = $mensagem;
+    header('Location: dashboard.php');
+    exit;
+}
+
+// Se ainda tiver envios disponíveis mas estiver próximo do limite (80%)
+if ($verificacao['restantes'] <= ($verificacao['limite_total'] * 0.2)) {
+    $mensagem = [
+        'tipo' => 'warning',
+        'texto' => sprintf(
+            'Atenção: Você tem apenas %d envios restantes de um total de %d.',
+            $verificacao['restantes'],
+            $verificacao['limite_total']
+        )
+    ];
+    
+    $_SESSION['mensagem'] = $mensagem;
+}
 
 // Consulta para obter os dispositivos CONECTADOS do usuário e dados do usuário
 $stmt = $pdo->prepare("SELECT d.*, u.mensagem_base, u.arquivo_padrao FROM dispositivos d 

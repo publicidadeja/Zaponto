@@ -96,3 +96,25 @@ function verificarNotificacoes($pdo, $usuario_id) {
         }
     }
 }
+
+    function verificarAlertasLimite($pdo, $usuario_id) {
+        $limites = verificarLimitesEnvio($pdo, $usuario_id);
+        
+        if ($limites['percentual'] >= 80 && $limites['percentual'] < 90) {
+            criarNotificacao(
+                $pdo, 
+                $usuario_id, 
+                'alerta',
+                'Limite de envios próximo',
+                'Você já utilizou 80% do seu limite mensal de envios.'
+            );
+        } elseif ($limites['percentual'] >= 90) {
+            criarNotificacao(
+                $pdo, 
+                $usuario_id, 
+                'urgente',
+                'Limite de envios crítico',
+                'Você já utilizou 90% do seu limite mensal de envios.'
+            );
+        }
+    }

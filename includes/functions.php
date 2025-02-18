@@ -215,4 +215,37 @@ function verificarAcessoIA($pdo, $usuario_id) {
     
     return (bool)$assinatura['tem_ia'];
 }
+
+function verificarLimitesEnvio($pdo, $usuario_id) {
+    // Buscar limites do plano atual
+    $stmt = $pdo->prepare("
+        SELECT a.*, p.* 
+        FROM assinaturas a
+        JOIN planos p ON a.plano_id = p.id
+        WHERE a.usuario_id = ? 
+        AND a.status = 'ativo'
+        ORDER BY a.data_inicio DESC 
+        LIMIT 1
+    ");
+    $stmt->execute([$usuario_id]);
+    $plano = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Contar envios do mês atual
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as total 
+        FROM leads_enviados 
+        WHERE usuario_id = ? 
+        AND MONTH(data_envio) = MONTH(CURRENT_DATE())
+        AND YEAR(data_envio) = YEAR(CURRENT_DATE())
+    ");
+    $stmt->execute([$usuario_id]);
+    $envios = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+    
+    return [
+        'pode_enviar' => $envios < $plano['limite_mensagens'],
+        'limite_total' => $plano['limite_mensagens'],
+        'envios_realizados' => $envios,
+        'restantes' => $plano['limite_mensagens'] - $envios
+    ];
+}
 ?>
