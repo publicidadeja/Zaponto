@@ -423,6 +423,21 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
         height: 30px;
     }
 }
+
+.user-message .message-content {
+    justify-content: flex-end;
+}
+
+.user-message .message-bubble {
+    background-color: #0098fc;
+    color: white;
+    margin-left: auto;
+}
+
+.assistant-message .message-bubble {
+    background-color: white;
+    margin-right: auto;
+}
 </style>
 <script>window.hasAIAccess = <?php echo $tem_acesso_ia ? 'true' : 'false'; ?>;</script>
 

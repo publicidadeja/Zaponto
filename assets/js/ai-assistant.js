@@ -132,11 +132,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     showWelcomeMessage();
                 } else {
                     messageHistory.forEach(msg => {
-                        // Ajuste para usar a estrutura correta dos dados do servidor
                         addMessage(
-                            'assistant', 
-                            msg.mensagem || msg.content, 
-                            false, 
+                            msg.tipo_mensagem, // Usar o tipo correto da mensagem
+                            msg.mensagem || msg.content,
+                            false,
                             false
                         );
                     });
@@ -192,27 +191,18 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const messageContent = document.createElement('div');
         messageContent.classList.add('message-content');
-
-        if (!isLoading && !isWelcome) {
-            const messageData = {
-                type: type,
-                content: content,
-                timestamp: new Date().toISOString()
-            };
-            messageHistory.push(messageData);
-            saveMessages(messageHistory);
-        }
-
+    
         if (type === 'assistant') {
             const avatar = document.createElement('img');
             avatar.src = 'https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png';
             avatar.classList.add('assistant-avatar');
             messageContent.appendChild(avatar);
         }
-
+    
         const messageBubble = document.createElement('div');
         messageBubble.classList.add('message-bubble');
-
+        messageBubble.classList.add(`${type}-bubble`); // Adiciona classe específica para o tipo
+    
         if (isLoading) {
             messageBubble.innerHTML = `
                 <div class="typing-indicator">
@@ -222,12 +212,12 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             messageBubble.innerHTML = content;
         }
-
+    
         messageContent.appendChild(messageBubble);
         messageDiv.appendChild(messageContent);
         messagesContainer.appendChild(messageDiv);
         scrollToBottom();
-
+    
         return messageDiv;
     }
 
