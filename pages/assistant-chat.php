@@ -438,6 +438,8 @@ $tem_acesso_ia = isset($limites['tem_ia']) ? $limites['tem_ia'] : false;
     background-color: white;
     margin-right: auto;
 }
+
+
 </style>
 <script>window.hasAIAccess = <?php echo $tem_acesso_ia ? 'true' : 'false'; ?>;</script>
 

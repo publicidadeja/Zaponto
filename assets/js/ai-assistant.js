@@ -6,7 +6,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const promptInput = document.getElementById('ai-assistant-prompt');
     const sendBtn = document.getElementById('ai-assistant-send');
     const toggleBtn = document.getElementById('ai-assistant-toggle');
+
+
+    // Inicializa o chat
     initializeChat();
+    
+    async function initializeChat() {
+        try {
+            await loadChatHistory();
+        } catch (error) {
+            console.error('Erro ao inicializar chat:', error);
+            showWelcomeMessage();
+        }
+    }
+
 
     // Verifica se o usuário tem acesso à IA (definido no PHP)
     const hasAIAccess = window.hasAIAccess || false;
@@ -121,26 +134,43 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function loadChatHistory() {
         try {
-            const result = await loadMessages();
-            messageHistory = [];
-            messagesContainer.innerHTML = '';
+            const response = await fetch('../includes/assistant.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'load'
+                })
+            });
     
+            const result = await response.json();
+            
             if (result && result.success && Array.isArray(result.messages)) {
                 messageHistory = result.messages;
+                messagesContainer.innerHTML = '';
                 
                 if (messageHistory.length === 0) {
                     showWelcomeMessage();
                 } else {
                     messageHistory.forEach(msg => {
-                        addMessage(
-                            msg.tipo_mensagem, // Usar o tipo correto da mensagem
-                            msg.mensagem || msg.content,
-                            false,
-                            false
-                        );
+                        // Normaliza o tipo de mensagem
+                        const messageType = (msg.tipo_mensagem || msg.type || '').toLowerCase();
+                        const isValidType = ['user', 'assistant'].includes(messageType);
+                        
+                        // Se o tipo for válido e houver mensagem, adiciona ao chat
+                        if (isValidType && msg.mensagem) {
+                            addMessage(
+                                messageType,
+                                msg.mensagem,
+                                false,
+                                false
+                            );
+                        }
                     });
                 }
             } else {
+                console.error('Erro ao carregar mensagens:', result);
                 showWelcomeMessage();
             }
         } catch (error) {
@@ -149,15 +179,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Inicialização do chat
-    async function initializeChat() {
-        try {
-            await loadChatHistory();
-        } catch (error) {
-            console.error('Erro ao inicializar chat:', error);
-            showWelcomeMessage();
-        }
-    }
 
     function autoResizeTextarea(element) {
         element.style.height = 'auto';
@@ -187,28 +208,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function addMessage(type, content, isLoading = false, isWelcome = false) {
         const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', `${type}-message`);
+        messageDiv.classList.add('message');
+        
+        // Determina o tipo de mensagem e adiciona a classe apropriada
+        const isUserMessage = type === 'user';
+        messageDiv.classList.add(isUserMessage ? 'user-message' : 'assistant-message');
         
         const messageContent = document.createElement('div');
         messageContent.classList.add('message-content');
     
-        if (type === 'assistant') {
+        // Adiciona estrutura específica para mensagem do assistente
+        if (!isUserMessage) {
+            const assistantHeader = document.createElement('div');
+            assistantHeader.classList.add('assistant-header');
+            
             const avatar = document.createElement('img');
             avatar.src = 'https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png';
             avatar.classList.add('assistant-avatar');
-            messageContent.appendChild(avatar);
+            
+            assistantHeader.appendChild(avatar);
+            messageContent.appendChild(assistantHeader);
         }
     
         const messageBubble = document.createElement('div');
         messageBubble.classList.add('message-bubble');
-        messageBubble.classList.add(`${type}-bubble`); // Adiciona classe específica para o tipo
+        messageBubble.classList.add(isUserMessage ? 'user-bubble' : 'assistant-bubble');
     
         if (isLoading) {
             messageBubble.innerHTML = `
                 <div class="typing-indicator">
                     <span></span><span></span><span></span>
-                </div>
-            `;
+                </div>`;
         } else {
             messageBubble.innerHTML = content;
         }
@@ -216,8 +246,10 @@ document.addEventListener('DOMContentLoaded', function() {
         messageContent.appendChild(messageBubble);
         messageDiv.appendChild(messageContent);
         messagesContainer.appendChild(messageDiv);
-        scrollToBottom();
     
+        // Rola para a última mensagem
+        scrollToBottom();
+        
         return messageDiv;
     }
 

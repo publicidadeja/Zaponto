@@ -38,17 +38,26 @@ function salvarMensagemAssistente($pdo, $usuario_id, $mensagem, $tipo) {
 function carregarMensagensAssistente($pdo, $usuario_id) {
     try {
         $stmt = $pdo->prepare("
-            SELECT mensagem, tipo_mensagem, data_criacao 
+            SELECT 
+                mensagem, 
+                tipo_mensagem as type,
+                DATE_FORMAT(data_criacao, '%Y-%m-%d %H:%i:%s') as timestamp
             FROM assistant_chat_historico 
             WHERE usuario_id = ? 
             AND DATE(data_criacao) = CURDATE()
             ORDER BY data_criacao ASC
         ");
         $stmt->execute([$usuario_id]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return [
+            'success' => true,
+            'messages' => $stmt->fetchAll(PDO::FETCH_ASSOC)
+        ];
     } catch (PDOException $e) {
         error_log("Erro ao carregar mensagens: " . $e->getMessage());
-        return [];
+        return [
+            'success' => false,
+            'error' => 'Erro ao carregar mensagens'
+        ];
     }
 }
 
@@ -68,70 +77,83 @@ function limparHistorico($pdo, $usuario_id) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        if (!isset($_SESSION['usuario_id'])) {
-            throw new Exception('Usuário não autenticado');
-        }
-
-        $data = json_decode(file_get_contents('php://input'), true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new Exception('Dados JSON inválidos');
-        }
-
-        $response = ['success' => false];
-
+    $data = json_decode(file_get_contents('php://input'), true);
+    
+    if (isset($data['action'])) {
         switch ($data['action']) {
-            case 'save':
-                if (!isset($data['message']) || !isset($data['type'])) {
-                    throw new Exception('Dados incompletos');
-                }
-                
-                $success = salvarMensagemAssistente(
-                    $pdo, 
-                    $_SESSION['usuario_id'], 
-                    $data['message'],
-                    $data['type']
-                );
-                
-                $response = [
-                    'success' => $success,
-                    'message' => $success ? 'Mensagem salva com sucesso' : 'Erro ao salvar mensagem'
-                ];
-                break;
-
             case 'load':
-                $mensagens = carregarMensagensAssistente($pdo, $_SESSION['usuario_id']);
-                $response = [
-                    'success' => true,
-                    'messages' => array_map(function($msg) {
-                        return [
-                            'type' => $msg['tipo_mensagem'],
-                            'content' => $msg['mensagem'],
-                            'timestamp' => $msg['data_criacao']
-                        ];
-                    }, $mensagens)
-                ];
+                if (!isset($_SESSION['usuario_id'])) {
+                    echo json_encode(['success' => false, 'error' => 'Usuário não autenticado']);
+                    exit;
+                }
+                $messages = carregarMensagensAssistente($pdo, $_SESSION['usuario_id']);
+                echo json_encode($messages);
+                exit;
                 break;
+            
+            case 'save':
+                if (!isset($_SESSION['usuario_id'])) {
+                    echo json_encode(['success' => false, 'error' => 'Usuário não autenticado']);
+                    exit;
+                }
 
-            case 'clear':
-                $success = limparHistorico($pdo, $_SESSION['usuario_id']);
-                $response = [
-                    'success' => $success,
-                    'message' => $success ? 'Histórico limpo com sucesso' : 'Erro ao limpar histórico'
-                ];
+                $mensagem = $data['message'] ?? '';
+                $tipo = $data['type'] ?? 'user';
+
+                try {
+                    $stmt = $pdo->prepare("
+                        INSERT INTO assistant_chat_historico 
+                        (usuario_id, mensagem, tipo_mensagem, data_criacao) 
+                        VALUES (?, ?, ?, NOW())
+                    ");
+                    
+                    $stmt->execute([
+                        $_SESSION['usuario_id'],
+                        $mensagem,
+                        $tipo
+                    ]);
+
+                    echo json_encode([
+                        'success' => true,
+                        'message' => 'Mensagem salva com sucesso'
+                    ]);
+                } catch (PDOException $e) {
+                    error_log("Erro ao salvar mensagem: " . $e->getMessage());
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Erro ao salvar mensagem'
+                    ]);
+                }
+                exit;
                 break;
-
+                
             default:
-                throw new Exception('Ação inválida');
+                echo json_encode(['success' => false, 'error' => 'Ação inválida']);
+                exit;
         }
-    } catch (Exception $e) {
-        $response = [
-            'success' => false,
-            'error' => $e->getMessage()
-        ];
-        http_response_code(400);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Ação não especificada']);
+        exit;
     }
+}
 
-    echo json_encode($response, JSON_UNESCAPED_UNICODE);
-    exit;
+// Função para limpar mensagens antigas (mais de 24 horas)
+function limparMensagensAntigas($pdo) {
+    try {
+        $stmt = $pdo->prepare("
+            DELETE FROM assistant_chat_historico 
+            WHERE data_criacao < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        ");
+        $result = $stmt->execute();
+        
+        if ($result) {
+            // Log da limpeza para monitoramento
+            error_log("Limpeza automática do histórico: " . $stmt->rowCount() . " mensagens removidas");
+        }
+        
+        return $result;
+    } catch (PDOException $e) {
+        error_log("Erro ao limpar mensagens antigas: " . $e->getMessage());
+        return false;
+    }
 }
