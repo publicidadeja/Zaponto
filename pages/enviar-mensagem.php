@@ -43,7 +43,7 @@ if (!$verificacao['pode_enviar']) {
 }
 
 // Se ainda tiver envios disponíveis mas estiver próximo do limite (80%)
-if ($verificacao['restantes'] <= ($verificacao['limite_total'] * 0.2)) {
+if (!$verificacao['is_ilimitado'] && $verificacao['restantes'] <= ($verificacao['limite_total'] * 0.2)) {
     $mensagem = [
         'tipo' => 'warning',
         'texto' => sprintf(
@@ -190,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enviar Mensagem - ZapLocal</title>
+    <title>Enviar Mensagem - Zaponto</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->

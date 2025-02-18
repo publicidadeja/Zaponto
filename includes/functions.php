@@ -241,11 +241,15 @@ function verificarLimitesEnvio($pdo, $usuario_id) {
     $stmt->execute([$usuario_id]);
     $envios = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
     
+    // Verifica se o plano é ilimitado
+    $is_ilimitado = ($plano['limite_mensagens'] == -1);
+    
     return [
-        'pode_enviar' => $envios < $plano['limite_mensagens'],
-        'limite_total' => $plano['limite_mensagens'],
-        'envios_realizados' => $envios,
-        'restantes' => $plano['limite_mensagens'] - $envios
+        'pode_enviar' => $is_ilimitado ? true : ($envios < $plano['limite_mensagens']),
+        'limite_total' => $is_ilimitado ? 'Ilimitado' : (int)$plano['limite_mensagens'],
+        'envios_realizados' => (int)$envios,
+        'restantes' => $is_ilimitado ? 'Ilimitado' : (int)($plano['limite_mensagens'] - $envios),
+        'is_ilimitado' => $is_ilimitado
     ];
 }
 ?>

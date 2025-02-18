@@ -243,9 +243,17 @@ $stmt = $pdo->prepare("
 $stmt->execute([$_SESSION['usuario_id']]);
 $mensagens_enviadas = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
+// Verificar se o plano é ilimitado
+$is_ilimitado = ($plano['limite_mensagens'] == -1);
+
 // Calcular mensagens restantes
-$mensagens_restantes = $plano['limite_mensagens'] - $mensagens_enviadas;
-$percentual_usado = ($mensagens_enviadas / $plano['limite_mensagens']) * 100;
+if ($is_ilimitado) {
+    $mensagens_restantes = "Ilimitado";
+    $percentual_usado = 0; // Não mostra barra de progresso para plano ilimitado
+} else {
+    $mensagens_restantes = $plano['limite_mensagens'] - $mensagens_enviadas;
+    $percentual_usado = ($mensagens_enviadas / $plano['limite_mensagens']) * 100;
+}
 
 
 // Estatísticas de mensagens (hoje, esta semana)
@@ -325,30 +333,36 @@ include '../includes/header.php';
             </div>
 
             <div class="col-12 col-md-6 col-lg-4">
-                <div class="metric-card">
-                    <h3>Limite de Mensagens</h3>
-                     <div class="metric-value">
-                        <?php echo number_format($mensagens_restantes); ?>
-                    </div>
-                    <p class="metric-description">
-                        <i class="fas fa-envelope"></i> Mensagens restantes
-                    </p>
-                    <div class="progress">
-                        <div class="progress-bar <?php echo $percentual_usado > 80 ? 'bg-warning' : 'bg-success'; ?>"
-                             role="progressbar"
-                             style="width: <?php echo $percentual_usado; ?>%"
-                             aria-valuenow="<?php echo $percentual_usado; ?>"
-                             aria-valuemin="0"
-                             aria-valuemax="100">
-                        </div>
-                    </div>
-                    <p class="metric-description">
-                        <small>
-                            <?php echo $mensagens_enviadas; ?> de <?php echo $plano['limite_mensagens']; ?> utilizadas
-                        </small>
-                    </p>
+    <div class="metric-card">
+        <h3>Limite de Mensagens</h3>
+        <div class="metric-value">
+            <?php 
+            // Verificar se o plano é ilimitado
+            $is_ilimitado = ($plano['limite_mensagens'] == -1);
+            echo $is_ilimitado ? "Ilimitado" : number_format($mensagens_restantes); 
+            ?>
+        </div>
+        <p class="metric-description">
+            <i class="fas fa-envelope"></i> Mensagens restantes
+        </p>
+        <?php if (!$is_ilimitado): ?>
+            <div class="progress">
+                <div class="progress-bar <?php echo $percentual_usado > 80 ? 'bg-warning' : 'bg-success'; ?>"
+                     role="progressbar"
+                     style="width: <?php echo min($percentual_usado, 100); ?>%"
+                     aria-valuenow="<?php echo min($percentual_usado, 100); ?>"
+                     aria-valuemin="0"
+                     aria-valuemax="100">
                 </div>
             </div>
+            <p class="metric-description">
+                <small>
+                    <?php echo number_format($mensagens_enviadas); ?> de <?php echo number_format($plano['limite_mensagens']); ?> utilizadas
+                </small>
+            </p>
+        <?php endif; ?>
+    </div>
+</div>
 
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="metric-card">
