@@ -640,6 +640,60 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         max-width: 1400px;
     }
 }
+
+/* Estilos para o alerta de envio concluído */
+.alert-envio {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 20px 30px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-left: 4px solid #2CC149;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.alert-envio i {
+    font-size: 24px;
+    color: #2CC149;
+}
+
+.alert-envio-content {
+    color: #333;
+    font-weight: 500;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -40%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+    to {
+        opacity: 0;
+        transform: translate(-50%, -40%);
+    }
+}
+
+.alert-envio.fadeOut {
+    animation: fadeOut 0.3s ease-in-out forwards;
+}
     </style>
 </head>
 <body>
@@ -1543,13 +1597,29 @@ function iniciarMonitoramentoProgresso() {
                 currentMessage.textContent = data.sent;
                 totalMessages.textContent = (data.sent + data.pending + data.failed);
 
-                // Se não houver mais mensagens, para o monitoramento
                 if (data.status === 'completed') {
-                    clearInterval(progressInterval);
-                    setTimeout(() => {
-                        alert('Envio concluído!');
-                    }, 1000);
-                }
+    clearInterval(progressInterval);
+    setTimeout(() => {
+        // Criar elemento de alerta
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert-envio';
+        alertDiv.innerHTML = `
+            <i class="fas fa-check-circle"></i>
+            <div class="alert-envio-content">Envio concluído!</div>
+        `;
+        
+        // Adicionar ao corpo do documento
+        document.body.appendChild(alertDiv);
+        
+        // Remover após 3 segundos com animação
+        setTimeout(() => {
+            alertDiv.classList.add('fadeOut');
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 300);
+        }, 3000);
+    }, 1000);
+}
             })
             .catch(error => {
                 console.error('Erro ao verificar progresso:', error);
