@@ -363,11 +363,33 @@ function formatGeminiResponse($response) {
         .chat-widget.minimized {
             height: 60px;
             overflow: hidden;
+             /* Adiciona a animação de tremor */
+            animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both;
+            transform: translate3d(0, 0, 0);
+            backface-visibility: hidden;
+            perspective: 1000px;
         }
         .chat-widget.minimized .chat-messages,
         .chat-widget.minimized .chat-input-container {
             display: none;
         }
+
+        /* Animação de tremor */
+        @keyframes shake {
+            10%, 90% {
+                transform: translate3d(-1px, 0, 0);
+            }
+            20%, 80% {
+                transform: translate3d(2px, 0, 0);
+            }
+            30%, 50%, 70% {
+                transform: translate3d(-4px, 0, 0);
+            }
+            40%, 60% {
+                transform: translate3d(4px, 0, 0);
+            }
+        }
+
 
         @media (max-width: 768px) {
             .chat-widget {
@@ -400,7 +422,7 @@ function formatGeminiResponse($response) {
     </style>
 </head>
 <body>
-    <div class="chat-widget" id="chatWidget">
+    <div class="chat-widget minimized" id="chatWidget">  <!-- Inicialmente minimizado -->
         <div class="chat-header">
             <!-- Ícone da IA -->
             <div class="ai-icon">
@@ -409,7 +431,7 @@ function formatGeminiResponse($response) {
             <h5>Assistente Zaponto</h5>
             <!-- Botão de minimizar/maximizar -->
             <button class="chat-toggle-btn" id="chatToggleBtn" aria-label="Minimizar/Maximizar">
-                <span class="material-symbols-outlined">expand_more</span>
+                <span class="material-symbols-outlined">expand_less</span> <!-- Começa com expand_less -->
             </button>
         </div>
         <div class="chat-messages" id="chatMessages">
@@ -445,7 +467,7 @@ function formatGeminiResponse($response) {
         const chatWidget = document.getElementById('chatWidget');
         const chatToggleBtn = document.getElementById('chatToggleBtn');
 
-        let isChatMinimized = false;
+        let isChatMinimized = true; // Começa minimizado
 
         function showTypingIndicator() {
             typingIndicator.style.display = 'block';
@@ -515,6 +537,11 @@ function formatGeminiResponse($response) {
             isChatMinimized = !isChatMinimized;
             chatWidget.classList.toggle('minimized', isChatMinimized);
             chatToggleBtn.querySelector('span').textContent = isChatMinimized ? 'expand_less' : 'expand_more';
+
+            //  Remove a animação de tremor após a primeira interação
+            if (!isChatMinimized) {
+                chatWidget.style.animation = '';
+            }
         });
     </script>
 </body>
