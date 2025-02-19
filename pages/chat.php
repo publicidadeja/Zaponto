@@ -283,9 +283,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
                     addMessage('Desculpe, ocorreu um erro ao processar sua mensagem.', 'assistant');
                 }
             } catch (error) {
-                hideTypingIndicator();
-                addMessage('Erro ao enviar mensagem. Tente novamente.', 'assistant');
-            }
+    hideTypingIndicator();
+    console.error('Erro detalhado:', error);
+    addMessage('Erro ao enviar mensagem: ' + error.message, 'assistant');
+}
         }
 
         // Event Listeners

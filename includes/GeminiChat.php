@@ -129,6 +129,35 @@ class GeminiChat {
         - Sugira melhorias baseadas nas métricas disponíveis";
     }
 
+    private function callGeminiAPI($prompt) {
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' . $this->apiKey;
+        
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($prompt));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json'
+        ]);
+        
+        $response = curl_exec($ch);
+        
+        if (curl_errno($ch)) {
+            throw new Exception('Erro na chamada da API: ' . curl_error($ch));
+        }
+        
+        curl_close($ch);
+        
+        $result = json_decode($response, true);
+        
+        if (isset($result['error'])) {
+            throw new Exception('Erro na API do Gemini: ' . $result['error']['message']);
+        }
+        
+        return $result['candidates'][0]['content']['parts'][0]['text'] ?? 'Desculpe, não consegui gerar uma resposta.';
+    }
+
+
     public function sendMessage($message) {
         if (!$this->checkRateLimit()) {
             throw new Exception("Limite de requisições excedido. Tente novamente em alguns minutos.");
@@ -233,14 +262,16 @@ class GeminiChat {
     }
 
     private function logError($error) {
+        error_log("Erro no chat: " . $error->getMessage());
         $stmt = $this->pdo->prepare("
             INSERT INTO chat_errors 
-            (usuario_id, erro, data_erro) 
-            VALUES (?, ?, NOW())
+            (usuario_id, erro, data_erro, stack_trace) 
+            VALUES (?, ?, NOW(), ?)
         ");
         $stmt->execute([
             $this->usuario_id,
-            $error->getMessage()
+            $error->getMessage(),
+            $error->getTraceAsString()
         ]);
     }
 
