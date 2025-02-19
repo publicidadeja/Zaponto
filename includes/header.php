@@ -477,7 +477,10 @@ if (isset($_SESSION['usuario_id'], $pdo) && !in_array($currentPage, PUBLIC_PAGES
     });
     </script>
 
-<?php include 'assistant-chat.php'; ?>
+<a href="chat.php" class="nav-link">
+    <i class="fas fa-comments"></i> Chat Assistente
+</a>
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
 </body>
