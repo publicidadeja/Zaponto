@@ -11,7 +11,7 @@ if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.
         <ul>
             <li><a href="<?php echo $base_url; ?>/pages/dashboard.php"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
             <li><a href="<?php echo $base_url; ?>/pages/enviar-mensagem.php"><i class="fas fa-envelope"></i> Enviar Mensagem</a></li>
-            <li><a href="<?php echo $base_url; ?>/pages/lista-leads.php"><i class="fas fa-address-book"></i> Listar Leads</a></li>
+            <li><a href="<?php echo $base_url; ?>/pages/lista-leads.php"><i class="fas fa-address-book"></i> Meus Leads</a></li>
             <li><a href="<?php echo $base_url; ?>/pages/dispositivos.php"><i class="fas fa-mobile-alt"></i> Dispositivos</a></li>
             <li><a href="<?php echo $base_url; ?>/pages/envio-massa.php"><i class="fas fa-rocket"></i> Envio em Massa</a></li>
             <li><a href="<?php echo $base_url; ?>/pages/configuracoes.php"><i class="fas fa-cog"></i> Configurações</a></li>

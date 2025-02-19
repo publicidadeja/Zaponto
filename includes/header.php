@@ -347,7 +347,7 @@ if (isset($_SESSION['usuario_id'], $pdo) && !in_array($currentPage, PUBLIC_PAGES
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="<?= htmlspecialchars($baseUrl) ?>/pages/lista-leads.php">
-                                <i class="fas fa-address-book"></i> Listar Leads
+                                <i class="fas fa-address-book"></i> Meus Leads
                             </a>
                         </li>
                         <li class="nav-item">

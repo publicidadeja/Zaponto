@@ -50,31 +50,32 @@ $icone_url = 'https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-z
         </div>
 
         <div class="ai-assistant-body">
-            <div id="ai-assistant-messages" aria-live="polite">
-                <?php if (!$tem_acesso_ia) : ?>
-                    <!-- Mensagem de Acesso Restrito -->
-                    <div class="message assistant-message" role="alert">
-                        <div class="message-content">
-                            <img src="<?php echo htmlspecialchars($icone_url); ?>" class="assistant-avatar">
-                            <div class="message-bubble">
-                                <strong>Acesso Restrito à IA</strong><br><br>
-                                Seu plano atual não inclui acesso às funcionalidades de IA.
-                                Para aproveitar estratégias avançadas de marketing no WhatsApp e aumentar suas vendas com a ajuda da nossa IA, considere fazer um upgrade do seu plano.<br><br>
-                                <a href="/pages/planos.php" class="upgrade-button">Fazer Upgrade do Plano</a>
-                            </div>
-                        </div>
+    <div id="ai-assistant-messages" aria-live="polite">
+        <?php if (!$tem_acesso_ia) : ?>
+            <!-- Mensagem para usuários sem acesso à IA -->
+            <div class="message assistant-message" role="alert">
+                <div class="message-content">
+                    <img src="<?php echo htmlspecialchars($icone_url); ?>" class="assistant-avatar">
+                    <div class="message-bubble">
+                        <strong>Assistente de Marketing Personalizado</strong><br><br>
+                        Olá! Que bom ter você aqui! 👋<br><br>
+                        Com um upgrade do seu plano, você terá acesso ao nosso Assistente de Marketing IA que vai te ajudar a:
+                        <ul>
+                            <li>Criar estratégias personalizadas para seu negócio</li>
+                            <li>Otimizar suas campanhas de WhatsApp</li>
+                            <li>Aumentar suas taxas de conversão</li>
+                            <li>Gerar mais vendas com marketing inteligente</li>
+                        </ul>
+                        <br>
+                        <a href="/pages/planos.php" class="upgrade-button">
+                            <i class="fas fa-rocket"></i> Fazer Upgrade Agora
+                        </a>
                     </div>
-                <?php else : ?>
-                    <!-- Mensagem de Boas-Vindas (Usuários com Acesso) -->
-                    <div class="message assistant-message">
-                        <div class="message-content">
-                            <img src="<?php echo htmlspecialchars($icone_url); ?>" class="assistant-avatar">
-                            <div class="message-bubble">Olá! Sou o especialista de marketing do Zaponto. Como posso ajudar você hoje?
-                            </div>
-                        </div>
-                    </div>
-                <?php endif; ?>
+                </div>
             </div>
+        <?php endif; ?>
+    </div>
+</div>
 
             <?php if ($tem_acesso_ia) : ?>
                 <div class="ai-assistant-input">
@@ -457,6 +458,40 @@ $icone_url = 'https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-z
             height: 30px;
         }
     }
+
+    .message-bubble ul {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.message-bubble ul li {
+    margin: 5px 0;
+    color: #555;
+}
+
+.upgrade-button {
+    display: inline-block;
+    background-color: #0098fc;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 25px;
+    text-decoration: none;
+    margin-top: 15px;
+    transition: all 0.3s ease;
+    font-weight: bold;
+}
+
+.upgrade-button:hover {
+    background-color: #0076c4;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-decoration: none;
+    color: white;
+}
+
+.upgrade-button i {
+    margin-right: 8px;
+}
 </style>
 
 <script>

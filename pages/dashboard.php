@@ -319,18 +319,43 @@ include '../includes/header.php';
     </div>
 </div>
 
-            <div class="col-12 col-md-6 col-lg-4">
-                <div class="metric-card">
-                    <h3>Envios em Massa</h3>
-                    <div class="metric-value">
-                        <?php echo number_format($total_envios_massa); ?>
-                    </div>
-                    <p class="metric-description">
-                        <i class="fas fa-paper-plane"></i> Campanhas realizadas
-                    </p>
-                </div>
-            </div>
+<div class="col-12 col-md-6 col-lg-4">
+    <div class="metric-card">
+        <h3>Envios em Massa</h3>
+        <?php 
+        // Obtém o total de envios atual
+        $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM fila_mensagens WHERE usuario_id = ? AND status = 'ENVIADO'");
+        $stmt->execute([$_SESSION['usuario_id']]);
+        $totalEnvios = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+        ?>
+        
+        <div class="metric-value">
+            <?php echo number_format($totalEnvios, 0, ',', '.'); ?>
+        </div>
 
+        <?php if ($limites): ?>
+            <?php if ($limites['limite_mensagens'] == -1): ?>
+                <p class="metric-description">
+                    <i class="fas fa-paper-plane"></i> Mensagens enviadas (Ilimitado)
+                </p>
+            <?php else: ?>
+                <p class="metric-description">
+                    <i class="fas fa-paper-plane"></i> Mensagens enviadas (<?php echo number_format($totalEnvios); ?> de <?php echo number_format($limites['limite_mensagens']); ?>)
+                </p>
+                <div class="progress">
+                    <div class="progress-bar <?php echo ($totalEnvios / $limites['limite_mensagens'] > 0.8) ? 'bg-warning' : 'bg-success'; ?>"
+                         role="progressbar"
+                         style="width: <?php echo min(($totalEnvios / $limites['limite_mensagens'] * 100), 100); ?>%">
+                    </div>
+                </div>
+            <?php endif; ?>
+        <?php else: ?>
+            <p class="metric-description">
+                <i class="fas fa-paper-plane"></i> Mensagens enviadas
+            </p>
+        <?php endif; ?>
+    </div>
+</div>
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="metric-card">
                     <h3>Último Envio</h3>

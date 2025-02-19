@@ -34,18 +34,23 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setupUI() {
-        // Desabilita input e botão se não tiver acesso à IA
         if (!window.hasAIAccess) {
-            promptInput.disabled = true;
-            promptInput.placeholder = "Acesso à IA não disponível no seu plano.";
-            sendBtn.disabled = true;
-            if (clearHistoryBtn) {
-                clearHistoryBtn.style.display = 'none'; // Esconde o botão de limpar
-            }
-            // Esconde a área de input
+            // Remove a área de input
             const inputArea = document.querySelector('.ai-assistant-input');
             if (inputArea) {
                 inputArea.style.display = 'none';
+            }
+    
+            // Garante que a mensagem de upgrade esteja visível
+            const messagesContainer = document.getElementById('ai-assistant-messages');
+            if (messagesContainer) {
+                messagesContainer.style.display = 'block';
+            }
+    
+            // Remove o botão de limpar histórico
+            const clearHistoryBtn = document.getElementById('clear-history');
+            if (clearHistoryBtn) {
+                clearHistoryBtn.style.display = 'none';
             }
         }
     }
@@ -107,15 +112,18 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Alterna a visibilidade do widget
-    function toggleWidget() {
-        isWidgetOpen = !isWidgetOpen;
-        widget.classList.toggle('ai-assistant-closed', !isWidgetOpen);
-        floatingButton.style.display = isWidgetOpen ? 'none' : 'flex';
-        if (isWidgetOpen) {
+function toggleWidget() {
+    isWidgetOpen = !isWidgetOpen;
+    widget.classList.toggle('ai-assistant-closed', !isWidgetOpen);
+    floatingButton.style.display = isWidgetOpen ? 'none' : 'flex';
+    if (isWidgetOpen) {
+        // Só chama focus() se o promptInput existir e o usuário tiver acesso à IA
+        if (window.hasAIAccess && promptInput) {
             promptInput.focus();
-            scrollToBottom();
         }
+        scrollToBottom();
     }
+}
 
     // -- Funções de Histórico (AJAX) --
 
