@@ -3,11 +3,19 @@ session_start();
 include '../includes/auth.php';
 redirecionarSeNaoLogado();
 include '../includes/db.php';
+include '../includes/functions.php';
 
 // Consultar todos os dados do usuário
 $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
 $stmt->execute([$_SESSION['usuario_id']]);
 $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$limites = verificarLimitesUsuario($pdo, $_SESSION['usuario_id']);
+
+// Query para obter o total de leads atual
+$stmt = $pdo->prepare("SELECT COUNT(*) as total FROM leads_enviados WHERE usuario_id = ?");
+$stmt->execute([$_SESSION['usuario_id']]);
+$totalLeads = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
 // Verificação mais segura
 if (!isset($usuario['perfil_completo']) || $usuario['perfil_completo'] == 0 || $usuario['perfil_completo'] == null) {
@@ -284,12 +292,32 @@ include '../includes/header.php';
         <div class="row g-4">
             <!-- Primeira Linha -->
             <div class="col-12 col-md-6 col-lg-4">
-                <div class="metric-card">
-                    <h3>Total de Leads</h3>
-                    <div class="metric-value"><?php echo number_format($total_leads); ?></div>
-                    <p class="metric-description"><i class="fas fa-users"></i> Leads cadastrados</p>
+    <div class="metric-card">
+        <h3>Total de Leads</h3>
+        <div class="metric-value"><?php echo number_format($total_leads); ?></div>
+        <?php if ($limites): ?>
+            <?php if ($limites['limite_leads'] == -1): ?>
+                <p class="metric-description">
+                    <i class="fas fa-users"></i> Leads cadastrados (Ilimitado)
+                </p>
+            <?php else: ?>
+                <p class="metric-description">
+                    <i class="fas fa-users"></i> Leads cadastrados (<?php echo number_format($total_leads); ?> de <?php echo number_format($limites['limite_leads']); ?>)
+                </p>
+                <div class="progress">
+                    <div class="progress-bar <?php echo ($total_leads / $limites['limite_leads'] > 0.8) ? 'bg-warning' : 'bg-success'; ?>"
+                         role="progressbar"
+                         style="width: <?php echo min(($total_leads / $limites['limite_leads'] * 100), 100); ?>%">
+                    </div>
                 </div>
-            </div>
+            <?php endif; ?>
+        <?php else: ?>
+            <p class="metric-description">
+                <i class="fas fa-users"></i> Leads cadastrados
+            </p>
+        <?php endif; ?>
+    </div>
+</div>
 
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="metric-card">
