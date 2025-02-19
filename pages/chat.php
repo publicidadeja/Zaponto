@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once '../includes/db.php';
 require_once '../includes/GeminiChat.php';
 
@@ -9,104 +11,257 @@ if (!isset($_SESSION['usuario_id'])) {
 }
 
 // Sua chave API do Gemini
-$apiKey = 'minha_api_aqui';
+$apiKey = 'minha_api_aqui';  // Substitua pela sua chave real
 
 // Inicializa o chat
 $chat = new GeminiChat($pdo, $apiKey, $_SESSION['usuario_id']);
 
-// Processa mensagem enviada
+// Processa mensagem enviada (agora com formatação)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
     try {
         $response = $chat->sendMessage($_POST['message']);
-        echo json_encode(['success' => true, 'message' => $response]);
+
+        // Formatação da resposta (exemplo, adapte conforme a resposta do Gemini)
+        $formattedResponse = formatGeminiResponse($response);
+
+        echo json_encode(['success' => true, 'message' => $formattedResponse]);
         exit;
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         exit;
     }
 }
-?>
 
+// Função para formatar a resposta do Gemini (IMPORTANTE: Adaptar!)
+function formatGeminiResponse($response) {
+    // 1. Títulos:  Substituir por tags HTML (h2, h3, etc.)
+    $response = preg_replace('/^## (.*)$/m', '<h3>$1</h3>', $response);  // ## Título -> <h3>
+    $response = preg_replace('/^# (.*)$/m', '<h2>$1</h2>', $response);   // # Título -> <h2>
+
+    // 2. Negrito:  **texto**  ->  <strong>texto</strong>
+    $response = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $response);
+
+    // 3. Listas:
+    $response = preg_replace('/^(\s*)- (.*)$/m', '$1<li>$2</li>', $response); // - item -> <li>
+    $response = preg_replace('/^(<li>.*)(<li>.*)$/ms', '<ul>$1</ul>', $response); // envolve em <ul>
+
+    //4. Quebras de linha:  \n  -> <br> (com cuidado)
+    $response = nl2br($response, false); // Usa nl2br, mas com XHTML = false para <br> simples
+
+    // 5. Espaçamento (CSS, não <br> em excesso)
+    //    - Use CSS para margens e paddings entre parágrafos, títulos, listas, etc.
+
+    // 6. Links:  Se o Gemini retornar links, já estarão em formato <a> (idealmente)
+
+    // 7. Código (se houver):  ```  ->  <pre><code> (e escape HTML dentro!)
+    $response = preg_replace_callback('/```(.*?)```/s', function($matches) {
+        return '<pre><code>' . htmlspecialchars($matches[1]) . '</code></pre>';
+    }, $response);
+
+    return $response;
+}
+
+?>
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Assistente - ZapLocal</title>
+    <title>Chat Assistente - Zaponto</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Ícones (Material Symbols Outlined - Google Fonts) -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <style>
+        /* Variáveis de cor (fáceis de customizar) */
+        :root {
+            --primary-color: #0098fc; /* Azul do degradê */
+            --secondary-color: #F5F7FA; /* Fundo claro */
+            --accent-color: #FFD700; /* Dourado (opcional, para detalhes) */
+            --text-color: #333;
+            --light-text-color: #777;
+            --bubble-user: #DCF8C6; /* Verde claro (balão do usuário) */
+            --bubble-assistant: white;
+            --border-radius: 20px;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Fonte moderna */
+            background-color: var(--secondary-color);
+            margin: 0; /* Importante para ocupar a tela toda */
+            padding: 0;
+            overflow-x: hidden; /* Evita barra de rolagem horizontal */
+        }
+
         .chat-widget {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 380px;
-            height: 600px;
+            bottom: 30px;
+            right: 30px;
+            width: 90%;
+            max-width: 400px;
+            height: 80vh;
+            max-height: 650px;
             background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 25px rgba(0,0,0,0.2);
+            border-radius: var(--border-radius);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
             display: flex;
             flex-direction: column;
             overflow: hidden;
             z-index: 1000;
+            transition: transform 0.3s ease, height 0.3s ease, box-shadow 0.3s ease; /* Transições */
         }
 
+        /* Efeito de hover no widget */
+        .chat-widget:hover {
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3); /* Sombra mais intensa */
+        }
+
+        /* Cabeçalho */
         .chat-header {
-            background: #0098fc;
+            background: linear-gradient(135deg, #0098fc 0%, #0068b3 100%); /* Degradê */
             color: white;
-            padding: 15px 20px;
+            padding: 15px 25px;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            position: relative; /* Para o ícone */
+        }
+
+        /* Ícone da IA (dentro do cabeçalho) */
+        .chat-header .ai-icon {
+            position: absolute;
+            left: 25px; /* Alinhado à esquerda */
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px; /* Tamanho ajustável */
+            height: 40px;
+            border-radius: 50%; /* Circular */
+            background-color: white; /* Fundo para o ícone */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Sombra */
+            transition: transform 0.3s ease; /* Animação */
+        }
+
+        .chat-header .ai-icon img {
+            width: 80%; /* Ajusta ao tamanho do container */
+            height: 80%;
+            object-fit: contain; /* Mantém proporção */
+        }
+
+        /* Efeito de pulsação no ícone */
+        .chat-header .ai-icon:hover {
+            transform: translateY(-50%) scale(1.1); /* Aumenta um pouco */
         }
 
         .chat-header h5 {
             margin: 0;
-            font-size: 1.1rem;
-            font-weight: 600;
+            font-size: 1.2rem;
+            font-weight: 700;
+            flex-grow: 1;
+            text-align: center;
+            padding-left: 50px; /* Espaço para o ícone */
+        }
+
+        .chat-toggle-btn {
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            transition: transform 0.2s;
+        }
+        .chat-toggle-btn:hover {
+            transform: scale(1.2);
         }
 
         .chat-messages {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
-            background: #f8f9fa;
+            padding: 25px;
+            background: var(--secondary-color);
         }
 
         .message {
-            margin-bottom: 15px;
-            max-width: 85%;
+            margin-bottom: 20px;
+            max-width: 80%;
             position: relative;
             clear: both;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-message, .assistant-message {
+            padding: 15px 20px;
+            border-radius: var(--border-radius);
+            line-height: 1.4;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            word-wrap: break-word;  /* Quebra palavras longas */
         }
 
         .user-message {
             float: right;
-            background: #0098fc;
-            color: white;
-            padding: 12px 15px;
-            border-radius: 15px 15px 0 15px;
-            margin-left: 15%;
+            background: var(--bubble-user);
+            color: var(--text-color);
+            border-bottom-right-radius: 4px;
+            margin-left: 20%;
         }
 
         .assistant-message {
             float: left;
-            background: white;
-            color: #333;
-            padding: 12px 15px;
-            border-radius: 15px 15px 15px 0;
-            margin-right: 15%;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            background: var(--bubble-assistant);
+            color: var(--text-color);
+            border-bottom-left-radius: 4px;
+            margin-right: 20%;
         }
 
+        /* Estilos para títulos, parágrafos, etc. dentro das mensagens */
+        .assistant-message h2, .assistant-message h3 {
+            margin-top: 0.5em;
+            margin-bottom: 0.3em;
+            font-weight: 600; /* Negrito para títulos */
+        }
+        .assistant-message p {
+            margin-bottom: 0.8em; /* Espaçamento entre parágrafos */
+        }
+        .assistant-message ul {
+            padding-left: 1.2em; /* Recuo da lista */
+            margin-bottom: 0.8em;
+        }
+        .assistant-message li {
+            margin-bottom: 0.3em; /* Espaçamento entre itens da lista */
+        }
+        .assistant-message pre { /* Para blocos de código */
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto; /* Barra de rolagem horizontal se necessário */
+        }
+        .assistant-message a { /* Links */
+            color: #007bff;
+            text-decoration: none;
+        }
+        .assistant-message a:hover {
+            text-decoration: underline;
+        }
+
+
         .message-time {
-            font-size: 0.7rem;
-            color: #888;
-            margin-top: 5px;
+            font-size: 0.8rem;
+            color: var(--light-text-color);
+            margin-top: 8px;
             text-align: right;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .message:hover .message-time {
+            opacity: 1;
         }
 
         .chat-input-container {
-            padding: 15px;
+            padding: 20px;
             background: white;
             border-top: 1px solid #eee;
         }
@@ -114,95 +269,153 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
         .chat-input-wrapper {
             display: flex;
             align-items: center;
-            background: #f8f9fa;
-            border-radius: 25px;
-            padding: 5px;
+            background: #f9f9f9;
+            border-radius: 30px;
+            padding: 8px 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
 
         .chat-input {
             flex: 1;
             border: none;
-            padding: 10px 15px;
+            padding: 12px 15px;
             background: transparent;
             outline: none;
-            font-size: 0.95rem;
+            font-size: 1rem;
+            color: var(--text-color);
+        }
+
+        .chat-input::placeholder {
+            color: var(--light-text-color);
         }
 
         .send-button {
-            background: #0098fc;
+            background: var(--primary-color);
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 20px;
+            padding: 12px 20px;
+            border-radius: 30px;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: background 0.3s, transform 0.2s;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .send-button:hover {
-            background: #0084db;
+            background: #0068b3; /* Tom mais escuro (fim do degradê) */
+            transform: translateY(-2px);
         }
 
         .typing-indicator {
             display: none;
-            padding: 10px;
-            color: #666;
-            font-style: italic;
+            padding: 10px 15px;
+            margin-left: 15px;
+            margin-bottom: 10px;
         }
 
-        /* Scrollbar personalizada */
-        .chat-messages::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .chat-messages::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-
-        .chat-messages::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 3px;
-        }
-
-        .chat-messages::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-
-        /* Animação de digitação */
         .typing {
             display: flex;
             align-items: center;
-            margin-bottom: 15px;
         }
 
         .typing span {
-            height: 8px;
-            width: 8px;
-            background: #93959f;
+            height: 10px;
+            width: 10px;
+            background: #bbb;
             border-radius: 50%;
-            margin: 0 2px;
+            margin: 0 3px;
             display: inline-block;
-            animation: bounce 1.3s linear infinite;
+            animation: bounce 1.4s infinite;
         }
 
-        .typing span:nth-child(2) { animation-delay: 0.16s; }
-        .typing span:nth-child(3) { animation-delay: 0.32s; }
+        .typing span:nth-child(2) { animation-delay: 0.2s; }
+        .typing span:nth-child(3) { animation-delay: 0.4s; }
 
         @keyframes bounce {
-            0%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-10px); }
+            0%, 75%, 100% {
+                transform: translateY(0);
+            }
+            25% {
+                transform: translateY(-8px);
+            }
         }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 10px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .chat-widget.minimized {
+            height: 60px;
+            overflow: hidden;
+        }
+        .chat-widget.minimized .chat-messages,
+        .chat-widget.minimized .chat-input-container {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .chat-widget {
+                width: 95%;
+                right: 2.5%;
+                bottom: 15px;
+                height: 70vh;
+            }
+            .chat-messages {
+                padding: 15px;
+            }
+            .message {
+                max-width: 90%;
+            }
+            .user-message {
+                margin-left: 10%;
+            }
+            .assistant-message {
+                margin-right: 10%;
+            }
+             /* Esconde o ícone em telas menores */
+            .chat-header .ai-icon {
+                display: none;
+            }
+            .chat-header h5 {
+                padding-left: 0; /* Remove o padding */
+            }
+        }
+
     </style>
 </head>
 <body>
-    <div class="chat-widget">
+    <div class="chat-widget" id="chatWidget">
         <div class="chat-header">
-            <h5>Assistente Virtual ZapLocal</h5>
-            <button class="btn-close btn-close-white" aria-label="Minimizar"></button>
+            <!-- Ícone da IA -->
+            <div class="ai-icon">
+                <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png" alt="Ícone IA">
+            </div>
+            <h5>Assistente Zaponto</h5>
+            <!-- Botão de minimizar/maximizar -->
+            <button class="chat-toggle-btn" id="chatToggleBtn" aria-label="Minimizar/Maximizar">
+                <span class="material-symbols-outlined">expand_more</span>
+            </button>
         </div>
         <div class="chat-messages" id="chatMessages">
             <!-- Mensagem de boas-vindas -->
             <div class="message assistant-message">
-                Olá! Sou seu assistente virtual. Como posso ajudar você hoje?
+                Olá! Sou especialista em marketing do seu negócio. Como posso ajudar você hoje?
                 <div class="message-time">Agora</div>
             </div>
         </div>
@@ -216,7 +429,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
         <div class="chat-input-container">
             <div class="chat-input-wrapper">
                 <input type="text" id="messageInput" class="chat-input" placeholder="Digite sua mensagem...">
-                <button id="sendButton" class="send-button">Enviar</button>
+                <button id="sendButton" class="send-button">
+                    Enviar
+                    <span class="material-symbols-outlined">send</span>
+                </button>
             </div>
         </div>
     </div>
@@ -226,6 +442,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
         const sendButton = document.getElementById('sendButton');
         const chatMessages = document.getElementById('chatMessages');
         const typingIndicator = document.getElementById('typingIndicator');
+        const chatWidget = document.getElementById('chatWidget');
+        const chatToggleBtn = document.getElementById('chatToggleBtn');
+
+        let isChatMinimized = false;
 
         function showTypingIndicator() {
             typingIndicator.style.display = 'block';
@@ -256,15 +476,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
             const message = messageInput.value.trim();
             if (!message) return;
 
-            // Limpa input e adiciona mensagem do usuário
             messageInput.value = '';
             addMessage(message, 'user');
-            
-            // Mostra indicador de digitação
             showTypingIndicator();
 
             try {
-                const response = await fetch('chat.php', {
+                const response = await fetch('chat.php', {  // Certifique-se de que o caminho está correto
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
@@ -273,8 +490,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
                 });
 
                 const data = await response.json();
-                
-                // Esconde indicador de digitação
                 hideTypingIndicator();
 
                 if (data.success) {
@@ -283,13 +498,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
                     addMessage('Desculpe, ocorreu um erro ao processar sua mensagem.', 'assistant');
                 }
             } catch (error) {
-    hideTypingIndicator();
-    console.error('Erro detalhado:', error);
-    addMessage('Erro ao enviar mensagem: ' + error.message, 'assistant');
-}
+                hideTypingIndicator();
+                console.error('Erro detalhado:', error);
+                addMessage('Erro ao enviar mensagem: ' + error.message, 'assistant');
+            }
         }
 
-        // Event Listeners
         sendButton.addEventListener('click', sendMessage);
         messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -297,18 +511,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
             }
         });
 
-        // Minimizar/Maximizar chat
-        document.querySelector('.btn-close').addEventListener('click', () => {
-            const chatWidget = document.querySelector('.chat-widget');
-            if (chatWidget.style.height === '600px' || !chatWidget.style.height) {
-                chatWidget.style.height = '50px';
-                chatMessages.style.display = 'none';
-                document.querySelector('.chat-input-container').style.display = 'none';
-            } else {
-                chatWidget.style.height = '600px';
-                chatMessages.style.display = 'block';
-                document.querySelector('.chat-input-container').style.display = 'block';
-            }
+        chatToggleBtn.addEventListener('click', () => {
+            isChatMinimized = !isChatMinimized;
+            chatWidget.classList.toggle('minimized', isChatMinimized);
+            chatToggleBtn.querySelector('span').textContent = isChatMinimized ? 'expand_less' : 'expand_more';
         });
     </script>
 </body>
