@@ -28,17 +28,17 @@ class GeminiChat {
     private function loadUserData() {
         // Carrega dados completos do usuário
         $stmt = $this->pdo->prepare("
-            SELECT 
-                u.*,
-                p.nome as plano_nome,
-                p.preco as plano_valor,
-                (SELECT COUNT(*) FROM leads_enviados WHERE usuario_id = u.id) as total_leads,
-                (SELECT COUNT(*) FROM chat_conversations WHERE usuario_id = u.id) as total_interacoes,
-                (SELECT COUNT(DISTINCT DATE(data_criacao)) FROM leads_enviados WHERE usuario_id = u.id) as dias_ativos
-            FROM usuarios u
-            LEFT JOIN planos p ON u.plano_id = p.id
-            WHERE u.id = ?
-        ");
+    SELECT 
+        u.*,
+        p.nome as plano_nome,
+        p.preco as plano_valor,
+        (SELECT COUNT(*) FROM leads_enviados WHERE usuario_id = u.id) as total_leads,
+        (SELECT COUNT(*) FROM chat_conversations WHERE usuario_id = u.id) as total_interacoes,
+        (SELECT COUNT(DISTINCT DATE(created_at)) FROM leads_enviados WHERE usuario_id = u.id) as dias_ativos
+    FROM usuarios u
+    LEFT JOIN planos p ON u.plano_id = p.id
+    WHERE u.id = ?
+");
         $stmt->execute([$this->usuario_id]);
         $userData = $stmt->fetch(PDO::FETCH_ASSOC);
 
