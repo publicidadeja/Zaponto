@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Tempo de geração: 14/02/2025 às 18:21
+-- Tempo de geração: 19/02/2025 às 02:35
 -- Versão do servidor: 10.4.32-MariaDB
 -- Versão do PHP: 8.2.12
 
@@ -69,12 +69,102 @@ CREATE TABLE `assinaturas` (
 --
 
 INSERT INTO `assinaturas` (`id`, `usuario_id`, `plano_id`, `status`, `stripe_subscription_id`, `data_inicio`, `data_fim`, `is_trial`, `limite_leads`, `limite_mensagens`, `tem_ia`, `proximo_pagamento`) VALUES
-(4, 7, 4, 'ativo', NULL, '2025-02-11 20:41:18', '2025-02-18 20:41:18', 1, 100, 100, 1, NULL),
+(4, 7, 4, 'inativo', NULL, '2025-02-11 20:41:18', '2025-02-18 20:41:18', 1, 100, 100, 1, NULL),
 (5, 8, 4, 'ativo', NULL, '2025-02-12 15:51:31', '2025-02-19 15:51:31', 1, 100, 100, 1, NULL),
 (6, 9, 4, 'ativo', NULL, '2025-02-12 15:57:42', '2025-02-19 15:57:42', 1, 100, 100, 1, NULL),
 (7, 10, 4, 'ativo', NULL, '2025-02-12 16:08:06', '2025-02-19 16:08:06', 1, 100, 100, 1, NULL),
-(8, 11, 4, 'ativo', NULL, '2025-02-12 18:23:35', '2025-02-19 18:23:35', 1, 100, 100, 1, NULL),
-(9, 12, 4, 'ativo', NULL, '2025-02-12 20:12:41', '2025-02-19 20:12:41', 1, 100, 100, 1, NULL);
+(8, 11, 4, 'inativo', NULL, '2025-02-12 18:23:35', '2025-02-19 18:23:35', 1, 100, 100, 1, NULL),
+(9, 12, 4, 'ativo', NULL, '2025-02-12 20:12:41', '2025-02-19 20:12:41', 1, 100, 100, 1, NULL),
+(10, 11, 1, 'inativo', NULL, '2025-02-16 17:48:29', NULL, 0, 0, 0, 0, '2025-03-16 17:48:29'),
+(11, 7, 1, 'inativo', NULL, '2025-02-18 00:14:35', NULL, 0, 0, 0, 0, '2025-03-18 00:14:35'),
+(12, 7, 4, 'inativo', NULL, '2025-02-18 00:15:40', NULL, 0, 0, 0, 0, '2025-03-18 00:15:40'),
+(13, 7, 1, 'inativo', NULL, '2025-02-18 00:27:33', NULL, 0, 0, 0, 0, '2025-03-18 00:27:33'),
+(14, 7, 3, 'inativo', NULL, '2025-02-18 01:27:35', NULL, 0, 0, 0, 0, '2025-03-18 01:27:35'),
+(15, 7, 2, 'inativo', NULL, '2025-02-18 01:29:21', NULL, 0, 0, 0, 0, '2025-03-18 01:29:21'),
+(16, 7, 3, 'inativo', NULL, '2025-02-18 01:31:30', NULL, 0, 0, 0, 0, '2025-03-18 01:31:30'),
+(17, 7, 2, 'inativo', NULL, '2025-02-18 01:42:05', NULL, 0, 0, 0, 0, '2025-03-18 01:42:05'),
+(18, 7, 1, 'inativo', NULL, '2025-02-18 20:34:15', NULL, 0, 0, 0, 0, '2025-03-18 20:34:15'),
+(19, 7, 3, 'inativo', NULL, '2025-02-18 20:37:09', NULL, 0, 0, 0, 0, '2025-03-18 20:37:09'),
+(20, 7, 1, 'inativo', NULL, '2025-02-18 20:47:44', NULL, 0, 0, 0, 0, '2025-03-18 20:47:44'),
+(21, 7, 3, 'inativo', NULL, '2025-02-18 20:49:36', NULL, 0, 0, 0, 0, '2025-03-18 20:49:36'),
+(22, 7, 1, 'inativo', NULL, '2025-02-18 21:04:15', NULL, 0, 0, 0, 0, '2025-03-18 21:04:15'),
+(23, 7, 3, 'ativo', NULL, '2025-02-18 21:20:12', NULL, 0, 0, 0, 0, '2025-03-18 21:20:12'),
+(24, 11, 4, 'ativo', NULL, '2025-02-18 21:46:39', NULL, 0, 0, 0, 0, '2025-03-18 21:46:39');
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `chat_contextos`
+--
+
+CREATE TABLE `chat_contextos` (
+  `id` bigint(20) NOT NULL,
+  `usuario_id` int(11) NOT NULL,
+  `dados` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`dados`)),
+  `versao` int(11) NOT NULL,
+  `data_atualizacao` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `chat_conversations`
+--
+
+CREATE TABLE `chat_conversations` (
+  `id` bigint(20) NOT NULL,
+  `usuario_id` int(11) NOT NULL,
+  `mensagem` text NOT NULL,
+  `tipo` enum('usuario','assistente') NOT NULL,
+  `contexto` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`contexto`)),
+  `data_criacao` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Despejando dados para a tabela `chat_conversations`
+--
+
+INSERT INTO `chat_conversations` (`id`, `usuario_id`, `mensagem`, `tipo`, `contexto`, `data_criacao`) VALUES
+(1, 11, 'Oi', 'usuario', '{}', '2025-02-19 01:11:18'),
+(2, 11, 'Olá! Como posso ajudá-lo hoje?', 'assistente', '{}', '2025-02-19 01:11:20'),
+(3, 11, 'O que vc sabe sobre mim?', 'usuario', '{}', '2025-02-19 01:11:26'),
+(4, 11, 'Como um modelo de linguagem de IA, não tenho informações pessoais sobre você. Nosso objetivo é fornecer informações e responder perguntas com base no conhecimento e nos dados disponíveis on-line.\n\nSe você deseja compartilhar informações sobre você, ficarei feliz em tentar ajudá-lo em qualquer dúvida ou tarefa que você possa ter.', 'assistente', '{}', '2025-02-19 01:11:28'),
+(5, 11, 'Oi', 'usuario', '{\"perfil\":{\"id\":11,\"nome\":\"Gabriel Nascimento\",\"email\":\"gabriel@gmail.com\",\"senha\":\"$2y$10$qyaV5e52AVAWwwsJNJsxw.7byzscEiKgCnZ8ocqJ7qogqNmfa2mOS\",\"mensagem_base\":null,\"token_dispositivo\":null,\"arquivo_padrao\":null,\"created_at\":\"2025-02-12 14:23:35\",\"plano_id\":4,\"reset_token\":null,\"reset_token_expira\":null,\"telefone\":\"35991944831\",\"status\":\"ativo\",\"empresa\":\"\",\"site\":\"\",\"foto_perfil\":\"..\\/uploads\\/perfil\\/profile_67acee5c91a44.png\",\"data_cadastro\":\"2025-02-12 14:23:35\",\"perfil_completo\":1,\"nome_negocio\":\"Bar do Biel\",\"segmento\":\"varejo\",\"publico_alvo\":\"Leitores e degustaroes de caf\\u00e9\",\"objetivo_principal\":\"vendas\",\"plano_nome\":\"Plano Teste\",\"plano_valor\":\"0.00\",\"total_leads\":0,\"total_interacoes\":4},\"metricas\":[],\"analytics\":{\"total_leads\":0,\"total_interacoes\":4,\"plano_atual\":\"Plano Teste\",\"valor_plano\":\"0.00\"}}', '2025-02-19 01:22:12'),
+(6, 11, 'Oi', 'usuario', '{\"perfil\":{\"id\":11,\"nome\":\"Gabriel Nascimento\",\"email\":\"gabriel@gmail.com\",\"senha\":\"$2y$10$qyaV5e52AVAWwwsJNJsxw.7byzscEiKgCnZ8ocqJ7qogqNmfa2mOS\",\"mensagem_base\":null,\"token_dispositivo\":null,\"arquivo_padrao\":null,\"created_at\":\"2025-02-12 14:23:35\",\"plano_id\":4,\"reset_token\":null,\"reset_token_expira\":null,\"telefone\":\"35991944831\",\"status\":\"ativo\",\"empresa\":\"\",\"site\":\"\",\"foto_perfil\":\"..\\/uploads\\/perfil\\/profile_67acee5c91a44.png\",\"data_cadastro\":\"2025-02-12 14:23:35\",\"perfil_completo\":1,\"nome_negocio\":\"Bar do Biel\",\"segmento\":\"varejo\",\"publico_alvo\":\"Leitores e degustaroes de caf\\u00e9\",\"objetivo_principal\":\"vendas\",\"plano_nome\":\"Plano Teste\",\"plano_valor\":\"0.00\",\"total_leads\":0,\"total_interacoes\":5},\"metricas\":[],\"analytics\":{\"total_leads\":0,\"total_interacoes\":5,\"plano_atual\":\"Plano Teste\",\"valor_plano\":\"0.00\"}}', '2025-02-19 01:22:24'),
+(7, 11, 'ffff', 'usuario', '{\"perfil\":{\"id\":11,\"nome\":\"Gabriel Nascimento\",\"email\":\"gabriel@gmail.com\",\"senha\":\"$2y$10$qyaV5e52AVAWwwsJNJsxw.7byzscEiKgCnZ8ocqJ7qogqNmfa2mOS\",\"mensagem_base\":null,\"token_dispositivo\":null,\"arquivo_padrao\":null,\"created_at\":\"2025-02-12 14:23:35\",\"plano_id\":4,\"reset_token\":null,\"reset_token_expira\":null,\"telefone\":\"35991944831\",\"status\":\"ativo\",\"empresa\":\"\",\"site\":\"\",\"foto_perfil\":\"..\\/uploads\\/perfil\\/profile_67acee5c91a44.png\",\"data_cadastro\":\"2025-02-12 14:23:35\",\"perfil_completo\":1,\"nome_negocio\":\"Bar do Biel\",\"segmento\":\"varejo\",\"publico_alvo\":\"Leitores e degustaroes de caf\\u00e9\",\"objetivo_principal\":\"vendas\",\"plano_nome\":\"Plano Teste\",\"plano_valor\":\"0.00\",\"total_leads\":0,\"total_interacoes\":6},\"metricas\":[],\"analytics\":{\"total_leads\":0,\"total_interacoes\":6,\"plano_atual\":\"Plano Teste\",\"valor_plano\":\"0.00\"}}', '2025-02-19 01:22:44'),
+(8, 11, 'Oi', 'usuario', '{\"perfil\":{\"id\":11,\"nome\":\"Gabriel Nascimento\",\"email\":\"gabriel@gmail.com\",\"senha\":\"$2y$10$qyaV5e52AVAWwwsJNJsxw.7byzscEiKgCnZ8ocqJ7qogqNmfa2mOS\",\"mensagem_base\":null,\"token_dispositivo\":null,\"arquivo_padrao\":null,\"created_at\":\"2025-02-12 14:23:35\",\"plano_id\":4,\"reset_token\":null,\"reset_token_expira\":null,\"telefone\":\"35991944831\",\"status\":\"ativo\",\"empresa\":\"\",\"site\":\"\",\"foto_perfil\":\"..\\/uploads\\/perfil\\/profile_67acee5c91a44.png\",\"data_cadastro\":\"2025-02-12 14:23:35\",\"perfil_completo\":1,\"nome_negocio\":\"Bar do Biel\",\"segmento\":\"varejo\",\"publico_alvo\":\"Leitores e degustaroes de caf\\u00e9\",\"objetivo_principal\":\"vendas\",\"plano_nome\":\"Plano Teste\",\"plano_valor\":\"0.00\",\"total_leads\":0,\"total_interacoes\":7},\"metricas\":[],\"analytics\":{\"total_leads\":0,\"total_interacoes\":7,\"plano_atual\":\"Plano Teste\",\"valor_plano\":\"0.00\"}}', '2025-02-19 01:25:55'),
+(9, 11, 'Oi', 'usuario', '{\"perfil\":{\"id\":11,\"nome\":\"Gabriel Nascimento\",\"email\":\"gabriel@gmail.com\",\"senha\":\"$2y$10$qyaV5e52AVAWwwsJNJsxw.7byzscEiKgCnZ8ocqJ7qogqNmfa2mOS\",\"mensagem_base\":null,\"token_dispositivo\":null,\"arquivo_padrao\":null,\"created_at\":\"2025-02-12 14:23:35\",\"plano_id\":4,\"reset_token\":null,\"reset_token_expira\":null,\"telefone\":\"35991944831\",\"status\":\"ativo\",\"empresa\":\"\",\"site\":\"\",\"foto_perfil\":\"..\\/uploads\\/perfil\\/profile_67acee5c91a44.png\",\"data_cadastro\":\"2025-02-12 14:23:35\",\"perfil_completo\":1,\"nome_negocio\":\"Bar do Biel\",\"segmento\":\"varejo\",\"publico_alvo\":\"Leitores e degustaroes de caf\\u00e9\",\"objetivo_principal\":\"vendas\",\"plano_nome\":\"Plano Teste\",\"plano_valor\":\"0.00\",\"total_leads\":0,\"total_interacoes\":8},\"metricas\":[],\"analytics\":{\"total_leads\":0,\"total_interacoes\":8,\"plano_atual\":\"Plano Teste\",\"valor_plano\":\"0.00\"}}', '2025-02-19 01:26:27'),
+(10, 11, 'Oi', 'usuario', '{\"perfil\":{\"id\":11,\"nome\":\"Gabriel Nascimento\",\"email\":\"gabriel@gmail.com\",\"senha\":\"$2y$10$qyaV5e52AVAWwwsJNJsxw.7byzscEiKgCnZ8ocqJ7qogqNmfa2mOS\",\"mensagem_base\":null,\"token_dispositivo\":null,\"arquivo_padrao\":null,\"created_at\":\"2025-02-12 14:23:35\",\"plano_id\":4,\"reset_token\":null,\"reset_token_expira\":null,\"telefone\":\"35991944831\",\"status\":\"ativo\",\"empresa\":\"\",\"site\":\"\",\"foto_perfil\":\"..\\/uploads\\/perfil\\/profile_67acee5c91a44.png\",\"data_cadastro\":\"2025-02-12 14:23:35\",\"perfil_completo\":1,\"nome_negocio\":\"Bar do Biel\",\"segmento\":\"varejo\",\"publico_alvo\":\"Leitores e degustaroes de caf\\u00e9\",\"objetivo_principal\":\"vendas\",\"plano_nome\":\"Plano Teste\",\"plano_valor\":\"0.00\",\"total_leads\":0,\"total_interacoes\":9},\"metricas\":[],\"analytics\":{\"total_leads\":0,\"total_interacoes\":9,\"plano_atual\":\"Plano Teste\",\"valor_plano\":\"0.00\"}}', '2025-02-19 01:26:39'),
+(11, 11, 'oi', 'usuario', '{\"perfil\":{\"id\":11,\"nome\":\"Gabriel Nascimento\",\"email\":\"gabriel@gmail.com\",\"senha\":\"$2y$10$qyaV5e52AVAWwwsJNJsxw.7byzscEiKgCnZ8ocqJ7qogqNmfa2mOS\",\"mensagem_base\":null,\"token_dispositivo\":null,\"arquivo_padrao\":null,\"created_at\":\"2025-02-12 14:23:35\",\"plano_id\":4,\"reset_token\":null,\"reset_token_expira\":null,\"telefone\":\"35991944831\",\"status\":\"ativo\",\"empresa\":\"\",\"site\":\"\",\"foto_perfil\":\"..\\/uploads\\/perfil\\/profile_67acee5c91a44.png\",\"data_cadastro\":\"2025-02-12 14:23:35\",\"perfil_completo\":1,\"nome_negocio\":\"Bar do Biel\",\"segmento\":\"varejo\",\"publico_alvo\":\"Leitores e degustaroes de caf\\u00e9\",\"objetivo_principal\":\"vendas\",\"plano_nome\":\"Plano Teste\",\"plano_valor\":\"0.00\",\"total_leads\":0,\"total_interacoes\":10},\"metricas\":[],\"analytics\":{\"total_leads\":0,\"total_interacoes\":10,\"plano_atual\":\"Plano Teste\",\"valor_plano\":\"0.00\"}}', '2025-02-19 01:27:02'),
+(12, 11, 'Oi', 'usuario', '{}', '2025-02-19 01:27:15'),
+(13, 11, 'Olá. Como posso ajudar?', 'assistente', '{}', '2025-02-19 01:27:17');
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `chat_errors`
+--
+
+CREATE TABLE `chat_errors` (
+  `id` int(11) NOT NULL,
+  `usuario_id` int(11) NOT NULL,
+  `erro` text NOT NULL,
+  `data_erro` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `chat_metricas`
+--
+
+CREATE TABLE `chat_metricas` (
+  `id` bigint(20) NOT NULL,
+  `usuario_id` int(11) NOT NULL,
+  `tipo_metrica` varchar(50) NOT NULL,
+  `valor` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`valor`)),
+  `data_registro` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -127,7 +217,7 @@ INSERT INTO `dispositivos` (`id`, `usuario_id`, `device_id`, `nome`, `status`, `
 (2, 1, 'device_67a5dabeaf84a', 'PJ', 'CONNECTED', '2025-02-07 10:04:46', NULL),
 (8, 2, 'device_67aab7f01d178', 'Leonardo', 'WAITING_QR', '2025-02-11 02:37:36', NULL),
 (11, 2, 'device_67aab930f3341', 'Aline', 'CONNECTED', '2025-02-11 02:42:56', NULL),
-(14, 7, 'device_67aba8ea9793a', 'Padaria Avenida', 'WAITING_QR', '2025-02-11 19:45:46', '2@3lbmae7Y6lm7SP0NOCyjk77aXFITcbidn4Eofv/9FxXXfgJReWZTW8scTkwEzEMT39DOoao94UjJ2WZ5Bg0yStVXxbaxlToatUk=,SrVvRgdGkB4iI0ZuU/2PgAX2amIOMr/nK0jUQNs5Ilg=,8qjfmaVz701E4Ax30ah++2wdF53VLzwjYMoNe/3D7zY=,t7Iy9AHuQ0a1C7K0M5+LoaK69kZcuz97Szo24ugralc=,1');
+(14, 7, 'device_67aba8ea9793a', 'Padaria Avenida', 'CONNECTED', '2025-02-11 19:45:46', NULL);
 
 -- --------------------------------------------------------
 
@@ -444,16 +534,67 @@ INSERT INTO `fila_mensagens` (`id`, `usuario_id`, `dispositivo_id`, `numero`, `m
 (271, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-13 11:42:18', '2025-02-13 11:42:29'),
 (272, 7, 'device_67aba8ea9793a', '5535991944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-13 11:42:18', '2025-02-13 11:42:31'),
 (273, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-13 11:42:18', '2025-02-13 11:42:31'),
-(274, 7, 'device_67aba8ea9793a', '553591944831', 'Use Leonardo para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1265b3a_1739447314_473406168_477716408498685_171445.jpg', 'PENDENTE', NULL, '2025-02-13 11:48:34', '2025-02-13 11:48:34'),
-(275, 7, 'device_67aba8ea9793a', '553591944831', 'Use Aline para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1265b3a_1739447314_473406168_477716408498685_171445.jpg', 'PENDENTE', NULL, '2025-02-13 11:48:34', '2025-02-13 11:48:34'),
-(276, 7, 'device_67aba8ea9793a', '553591944831', 'Use VIVIAN MACIENTE DO NASCIMENTO para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1265b3a_1739447314_473406168_477716408498685_171445.jpg', 'PENDENTE', NULL, '2025-02-13 11:48:34', '2025-02-13 11:48:34'),
-(277, 7, 'device_67aba8ea9793a', '5535991944831', 'Use Leonardo Nascimento para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1265b3a_1739447314_473406168_477716408498685_171445.jpg', 'PENDENTE', NULL, '2025-02-13 11:48:34', '2025-02-13 11:48:34'),
-(278, 7, 'device_67aba8ea9793a', '553591944831', 'Use Barbara para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1265b3a_1739447314_473406168_477716408498685_171445.jpg', 'PENDENTE', NULL, '2025-02-13 11:48:34', '2025-02-13 11:48:34'),
-(279, 7, 'device_67aba8ea9793a', '553591944831', 'Use Leonardo para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1375d03_1739447315_473406168_477716408498685_171445.jpg', 'PENDENTE', NULL, '2025-02-13 11:48:35', '2025-02-13 11:48:35'),
-(280, 7, 'device_67aba8ea9793a', '553591944831', 'Use Aline para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1375d03_1739447315_473406168_477716408498685_171445.jpg', 'PENDENTE', NULL, '2025-02-13 11:48:35', '2025-02-13 11:48:35'),
-(281, 7, 'device_67aba8ea9793a', '553591944831', 'Use VIVIAN MACIENTE DO NASCIMENTO para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1375d03_1739447315_473406168_477716408498685_171445.jpg', 'PENDENTE', NULL, '2025-02-13 11:48:35', '2025-02-13 11:48:35'),
-(282, 7, 'device_67aba8ea9793a', '5535991944831', 'Use Leonardo Nascimento para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1375d03_1739447315_473406168_477716408498685_171445.jpg', 'PENDENTE', NULL, '2025-02-13 11:48:35', '2025-02-13 11:48:35'),
-(283, 7, 'device_67aba8ea9793a', '553591944831', 'Use Barbara para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1375d03_1739447315_473406168_477716408498685_171445.jpg', 'PENDENTE', NULL, '2025-02-13 11:48:35', '2025-02-13 11:48:35');
+(274, 7, 'device_67aba8ea9793a', '553591944831', 'Use Leonardo para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1265b3a_1739447314_473406168_477716408498685_171445.jpg', 'ENVIADO', NULL, '2025-02-13 11:48:34', '2025-02-14 17:51:05'),
+(275, 7, 'device_67aba8ea9793a', '553591944831', 'Use Aline para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1265b3a_1739447314_473406168_477716408498685_171445.jpg', 'ENVIADO', NULL, '2025-02-13 11:48:34', '2025-02-14 17:51:10'),
+(276, 7, 'device_67aba8ea9793a', '553591944831', 'Use VIVIAN MACIENTE DO NASCIMENTO para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1265b3a_1739447314_473406168_477716408498685_171445.jpg', 'ENVIADO', NULL, '2025-02-13 11:48:34', '2025-02-14 17:51:16'),
+(277, 7, 'device_67aba8ea9793a', '5535991944831', 'Use Leonardo Nascimento para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1265b3a_1739447314_473406168_477716408498685_171445.jpg', 'ENVIADO', NULL, '2025-02-13 11:48:34', '2025-02-14 17:51:21'),
+(278, 7, 'device_67aba8ea9793a', '553591944831', 'Use Barbara para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1265b3a_1739447314_473406168_477716408498685_171445.jpg', 'ENVIADO', NULL, '2025-02-13 11:48:34', '2025-02-14 17:51:28'),
+(279, 7, 'device_67aba8ea9793a', '553591944831', 'Use Leonardo para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1375d03_1739447315_473406168_477716408498685_171445.jpg', 'ENVIADO', NULL, '2025-02-13 11:48:35', '2025-02-14 17:51:34'),
+(280, 7, 'device_67aba8ea9793a', '553591944831', 'Use Aline para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1375d03_1739447315_473406168_477716408498685_171445.jpg', 'ENVIADO', NULL, '2025-02-13 11:48:35', '2025-02-14 17:51:39'),
+(281, 7, 'device_67aba8ea9793a', '553591944831', 'Use VIVIAN MACIENTE DO NASCIMENTO para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1375d03_1739447315_473406168_477716408498685_171445.jpg', 'ENVIADO', NULL, '2025-02-13 11:48:35', '2025-02-14 17:51:44'),
+(282, 7, 'device_67aba8ea9793a', '5535991944831', 'Use Leonardo Nascimento para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1375d03_1739447315_473406168_477716408498685_171445.jpg', 'ENVIADO', NULL, '2025-02-13 11:48:35', '2025-02-14 17:51:49'),
+(283, 7, 'device_67aba8ea9793a', '553591944831', 'Use Barbara para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67addc1375d03_1739447315_473406168_477716408498685_171445.jpg', 'ENVIADO', NULL, '2025-02-13 11:48:35', '2025-02-14 17:51:57'),
+(284, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '../uploads/file_67af8286427df_1739555462_Convite aniversário 80 anos Dona Célia.png', 'ENVIADO', NULL, '2025-02-14 17:51:02', '2025-02-14 17:52:05'),
+(285, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '../uploads/file_67af8286427df_1739555462_Convite aniversário 80 anos Dona Célia.png', 'ENVIADO', NULL, '2025-02-14 17:51:02', '2025-02-14 17:52:13'),
+(286, 7, 'device_67aba8ea9793a', '553591944831', 'Use Leonardo para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67af82ee81f73_1739555566_Logo ZapLocal fundo escuro.png', 'ENVIADO', NULL, '2025-02-14 17:52:46', '2025-02-14 17:52:51'),
+(287, 7, 'device_67aba8ea9793a', '553591944831', 'Use Aline para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67af82ee81f73_1739555566_Logo ZapLocal fundo escuro.png', 'ENVIADO', NULL, '2025-02-14 17:52:46', '2025-02-14 17:52:55'),
+(288, 7, 'device_67aba8ea9793a', '553591944831', 'Use VIVIAN MACIENTE DO NASCIMENTO para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67af82ee81f73_1739555566_Logo ZapLocal fundo escuro.png', 'ENVIADO', NULL, '2025-02-14 17:52:46', '2025-02-14 17:53:01'),
+(289, 7, 'device_67aba8ea9793a', '5535991944831', 'Use Leonardo Nascimento para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67af82ee81f73_1739555566_Logo ZapLocal fundo escuro.png', 'ENVIADO', NULL, '2025-02-14 17:52:46', '2025-02-14 17:53:07'),
+(290, 7, 'device_67aba8ea9793a', '553591944831', 'Use Barbara para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67af82ee81f73_1739555566_Logo ZapLocal fundo escuro.png', 'ENVIADO', NULL, '2025-02-14 17:52:46', '2025-02-14 17:53:13'),
+(291, 7, 'device_67aba8ea9793a', '553591944831', 'Use Jibanele para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67af82ee81f73_1739555566_Logo ZapLocal fundo escuro.png', 'ENVIADO', NULL, '2025-02-14 17:52:46', '2025-02-14 17:53:19'),
+(292, 7, 'device_67aba8ea9793a', '553591944831', 'Use Aline para incluir o nome do lead na mensagem.\r\naaaaaaaaaaaaaaaa', NULL, '../uploads/file_67af839a38eb9_1739555738_Convite aniversário 80 anos Dona Célia.png', 'ENVIADO', NULL, '2025-02-14 17:55:38', '2025-02-14 17:55:41'),
+(293, 7, 'device_67aba8ea9793a', '553591944831', 'Use Barbara para incluir o nome do lead na mensagem.\r\naaaaaaaaaaaaaaaa', NULL, '../uploads/file_67af839a38eb9_1739555738_Convite aniversário 80 anos Dona Célia.png', 'ENVIADO', NULL, '2025-02-14 17:55:38', '2025-02-14 17:55:48'),
+(294, 7, 'device_67aba8ea9793a', '553591944831', 'Use Jibanele para incluir o nome do lead na mensagem.\r\naaaaaaaaaaaaaaaa', NULL, '../uploads/file_67af839a38eb9_1739555738_Convite aniversário 80 anos Dona Célia.png', 'ENVIADO', NULL, '2025-02-14 17:55:38', '2025-02-14 17:55:55'),
+(295, 7, 'device_67aba8ea9793a', '553591944831', 'Use Leonardo para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67b40522c1d9d_1739851042_gestao-de-riscos-psicossociais-sera-obrigatoria-em-maio-de-2025.webp', 'ENVIADO', NULL, '2025-02-18 03:57:22', '2025-02-18 03:57:28'),
+(296, 7, 'device_67aba8ea9793a', '553591944831', 'Use Aline para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67b40522c1d9d_1739851042_gestao-de-riscos-psicossociais-sera-obrigatoria-em-maio-de-2025.webp', 'ENVIADO', NULL, '2025-02-18 03:57:22', '2025-02-18 03:57:33'),
+(297, 7, 'device_67aba8ea9793a', '553591944831', 'Use VIVIAN MACIENTE DO NASCIMENTO para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67b40522c1d9d_1739851042_gestao-de-riscos-psicossociais-sera-obrigatoria-em-maio-de-2025.webp', 'ENVIADO', NULL, '2025-02-18 03:57:22', '2025-02-18 03:57:39'),
+(298, 7, 'device_67aba8ea9793a', '5535991944831', 'Use Leonardo Nascimento para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67b40522c1d9d_1739851042_gestao-de-riscos-psicossociais-sera-obrigatoria-em-maio-de-2025.webp', 'ENVIADO', NULL, '2025-02-18 03:57:22', '2025-02-18 03:57:45'),
+(299, 7, 'device_67aba8ea9793a', '553591944831', 'Use Barbara para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67b40522c1d9d_1739851042_gestao-de-riscos-psicossociais-sera-obrigatoria-em-maio-de-2025.webp', 'ENVIADO', NULL, '2025-02-18 03:57:22', '2025-02-18 03:57:50'),
+(300, 7, 'device_67aba8ea9793a', '553591944831', 'Use Jibanele para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67b40522c1d9d_1739851042_gestao-de-riscos-psicossociais-sera-obrigatoria-em-maio-de-2025.webp', 'ENVIADO', NULL, '2025-02-18 03:57:22', '2025-02-18 03:57:56'),
+(301, 7, 'device_67aba8ea9793a', '553591944831', 'Use Xavier para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67b40522c1d9d_1739851042_gestao-de-riscos-psicossociais-sera-obrigatoria-em-maio-de-2025.webp', 'ENVIADO', NULL, '2025-02-18 03:57:22', '2025-02-18 03:58:02'),
+(302, 7, 'device_67aba8ea9793a', '5535997232517', 'Use Juju para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67b40522c1d9d_1739851042_gestao-de-riscos-psicossociais-sera-obrigatoria-em-maio-de-2025.webp', 'ENVIADO', NULL, '2025-02-18 03:57:22', '2025-02-18 03:58:08'),
+(303, 7, 'device_67aba8ea9793a', '553591944831', 'Use Tadeu para incluir o nome do lead na mensagem.\r\n', NULL, '../uploads/file_67b40522c1d9d_1739851042_gestao-de-riscos-psicossociais-sera-obrigatoria-em-maio-de-2025.webp', 'ENVIADO', NULL, '2025-02-18 03:57:22', '2025-02-18 03:58:13'),
+(304, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '../uploads/file_67b405896d029_1739851145_1657112177205.jpeg', 'ENVIADO', NULL, '2025-02-18 03:59:05', '2025-02-18 03:59:08'),
+(305, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '../uploads/file_67b405896d029_1739851145_1657112177205.jpeg', 'ENVIADO', NULL, '2025-02-18 03:59:05', '2025-02-18 03:59:13'),
+(306, 7, 'device_67aba8ea9793a', '5535997232517', 'Preencha aqui com o seu texto...', NULL, '../uploads/file_67b405896d029_1739851145_1657112177205.jpeg', 'ENVIADO', NULL, '2025-02-18 03:59:05', '2025-02-18 03:59:18'),
+(307, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '../uploads/file_67b405896d029_1739851145_1657112177205.jpeg', 'ENVIADO', NULL, '2025-02-18 03:59:05', '2025-02-18 03:59:23'),
+(308, 7, 'device_67aba8ea9793a', '5535991944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:00:18', '2025-02-18 04:00:18'),
+(309, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:00:18', '2025-02-18 04:00:21'),
+(310, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:00:18', '2025-02-18 04:00:24'),
+(311, 7, 'device_67aba8ea9793a', '5535991944831', '<?php if (isset($_SESSION[\'mensagem\'])): ?>\r\n    <div class=\"alert alert-success\">\r\n        <?php \r\n        if (is_array($_SESSION[\'mensagem\'])) {\r\n            echo htmlspecialchars(implode(\' \', $_SESSION[\'mensagem\']));\r\n        } else {\r\n            echo htmlspecialchars($_SESSION[\'mensagem\']);\r\n        }\r\n        unset($_SESSION[\'mensagem\']);\r\n        ?>\r\n    </div>\r\n<?php endif; ?>', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:08:30', '2025-02-18 04:08:30'),
+(312, 7, 'device_67aba8ea9793a', '553591944831', '<?php if (isset($_SESSION[\'mensagem\'])): ?>\r\n    <div class=\"alert alert-success\">\r\n        <?php \r\n        if (is_array($_SESSION[\'mensagem\'])) {\r\n            echo htmlspecialchars(implode(\' \', $_SESSION[\'mensagem\']));\r\n        } else {\r\n            echo htmlspecialchars($_SESSION[\'mensagem\']);\r\n        }\r\n        unset($_SESSION[\'mensagem\']);\r\n        ?>\r\n    </div>\r\n<?php endif; ?>', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:08:30', '2025-02-18 04:08:34'),
+(313, 7, 'device_67aba8ea9793a', '5535997232517', '<?php if (isset($_SESSION[\'mensagem\'])): ?>\r\n    <div class=\"alert alert-success\">\r\n        <?php \r\n        if (is_array($_SESSION[\'mensagem\'])) {\r\n            echo htmlspecialchars(implode(\' \', $_SESSION[\'mensagem\']));\r\n        } else {\r\n            echo htmlspecialchars($_SESSION[\'mensagem\']);\r\n        }\r\n        unset($_SESSION[\'mensagem\']);\r\n        ?>\r\n    </div>\r\n<?php endif; ?>', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:08:30', '2025-02-18 04:08:37'),
+(314, 7, 'device_67aba8ea9793a', '553591944831', '<?php if (isset($_SESSION[\'mensagem\'])): ?>\r\n    <div class=\"alert alert-success\">\r\n        <?php \r\n        if (is_array($_SESSION[\'mensagem\'])) {\r\n            echo htmlspecialchars(implode(\' \', $_SESSION[\'mensagem\']));\r\n        } else {\r\n            echo htmlspecialchars($_SESSION[\'mensagem\']);\r\n        }\r\n        unset($_SESSION[\'mensagem\']);\r\n        ?>\r\n    </div>\r\n<?php endif; ?>', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:08:30', '2025-02-18 04:08:41'),
+(315, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:08:57', '2025-02-18 04:08:57'),
+(316, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:08:57', '2025-02-18 04:08:59'),
+(317, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:10:38', '2025-02-18 04:10:38'),
+(318, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:10:38', '2025-02-18 04:10:42'),
+(319, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:10:38', '2025-02-18 04:10:45'),
+(320, 7, 'device_67aba8ea9793a', '553591944831', 'error Erro ao processar o envio. Por favor, tente novamente.', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:11:20', '2025-02-18 04:11:20'),
+(321, 7, 'device_67aba8ea9793a', '553591944831', 'error Erro ao processar o envio. Por favor, tente novamente.', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:11:20', '2025-02-18 04:11:24'),
+(322, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:12:19', '2025-02-18 04:12:19'),
+(323, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:12:19', '2025-02-18 04:12:22'),
+(324, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:13:50', '2025-02-18 04:13:50'),
+(325, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:13:50', '2025-02-18 04:13:55'),
+(326, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:16:45', '2025-02-18 04:16:45'),
+(327, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:16:45', '2025-02-18 04:16:49'),
+(328, 7, 'device_67aba8ea9793a', '553591944831', '3333333333333', NULL, '../uploads/file_67b409d4d4859_1739852244_1657112177205.jpeg', 'ENVIADO', NULL, '2025-02-18 04:17:24', '2025-02-18 04:17:27'),
+(329, 7, 'device_67aba8ea9793a', '553591944831', '3333333333333', NULL, '../uploads/file_67b409d4d4859_1739852244_1657112177205.jpeg', 'ENVIADO', NULL, '2025-02-18 04:17:24', '2025-02-18 04:17:32'),
+(330, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:19:03', '2025-02-18 04:19:04'),
+(331, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:19:03', '2025-02-18 04:19:08'),
+(332, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:19:37', '2025-02-18 04:19:37'),
+(333, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:19:37', '2025-02-18 04:19:39'),
+(334, 7, 'device_67aba8ea9793a', '553591944831', 'Preencha aqui com o seu texto...', NULL, '', 'ENVIADO', NULL, '2025-02-18 04:22:41', '2025-02-18 04:22:42');
 
 -- --------------------------------------------------------
 
@@ -524,7 +665,12 @@ INSERT INTO `leads_enviados` (`id`, `usuario_id`, `dispositivo_id`, `numero`, `m
 (62, 7, 'device_67aba8ea9793a', '553591944831', 'Aline , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', 'LOGO ZAPONTO.png', 'Aline', 'ENVIADO', '2025-02-12 23:42:33', NULL, NULL),
 (63, 7, 'device_67aba8ea9793a', '553591944831', 'VIVIAN MACIENTE DO NASCIMENTO , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', 'LOGO ZAPONTO.png', 'VIVIAN MACIENTE DO NASCIMENTO', 'ENVIADO', '2025-02-12 14:37:46', NULL, NULL),
 (67, 7, 'device_67aba8ea9793a', '5535991944831', 'Leonardo Nascimento , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', 'LOGO ZAPONTO.png', 'Leonardo Nascimento', 'ENVIADO', '2025-02-12 14:37:37', NULL, NULL),
-(68, 7, 'device_67aba8ea9793a', '553591944831', 'Barbara , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', 'LOGO ZAPONTO.png', 'Barbara', 'ENVIADO', '2025-02-12 14:37:46', NULL, NULL);
+(68, 7, 'device_67aba8ea9793a', '553591944831', 'Barbara , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', 'LOGO ZAPONTO.png', 'Barbara', 'ENVIADO', '2025-02-12 14:37:46', NULL, NULL),
+(69, 7, 'device_67aba8ea9793a', '553591944831', 'Jibanele , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', 'LOGO ZAPONTO.png', 'Jibanele', 'ENVIADO', '2025-02-14 17:49:44', NULL, NULL),
+(70, 7, 'device_67aba8ea9793a', '553591944831', 'Xavier , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', 'LOGO ZAPONTO.png', 'Xavier', 'ENVIADO', '2025-02-16 16:30:43', NULL, NULL),
+(71, 7, 'device_67aba8ea9793a', '5535997232517', 'Juju , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', 'LOGO ZAPONTO.png', 'Juju', 'ENVIADO', '2025-02-16 16:31:35', NULL, NULL),
+(72, 7, 'device_67aba8ea9793a', '553591944831', 'Tadeu , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', 'LOGO ZAPONTO.png', 'Tadeu', 'ENVIADO', '2025-02-18 03:31:33', NULL, NULL),
+(73, 7, 'device_67aba8ea9793a', '553591944831', 'Baiano , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', 'LOGO ZAPONTO.png', 'Baiano', 'ENVIADO', '2025-02-18 23:55:57', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -590,44 +736,6 @@ CREATE TABLE `notificacoes` (
   `is_admin_notification` tinyint(1) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Despejando dados para a tabela `notificacoes`
---
-
-INSERT INTO `notificacoes` (`id`, `usuario_id`, `tipo`, `titulo`, `mensagem`, `lida`, `data_criacao`, `data_leitura`, `admin_id`, `is_admin_notification`) VALUES
-(1, 1, 'aviso', 'Consórcio residencial', 'Aqui ficara a mensagem', 0, '2025-02-13 12:25:28', NULL, NULL, 0),
-(2, 2, 'aviso', 'Consórcio residencial', 'Aqui ficara a mensagem', 0, '2025-02-13 12:25:28', NULL, NULL, 0),
-(3, 7, 'aviso', 'Consórcio residencial', 'Aqui ficara a mensagem', 1, '2025-02-13 12:25:28', '2025-02-13 12:46:17', NULL, 0),
-(4, 8, 'aviso', 'Consórcio residencial', 'Aqui ficara a mensagem', 0, '2025-02-13 12:25:28', NULL, NULL, 0),
-(5, 9, 'aviso', 'Consórcio residencial', 'Aqui ficara a mensagem', 0, '2025-02-13 12:25:28', NULL, NULL, 0),
-(6, 10, 'aviso', 'Consórcio residencial', 'Aqui ficara a mensagem', 0, '2025-02-13 12:25:28', NULL, NULL, 0),
-(7, 11, 'aviso', 'Consórcio residencial', 'Aqui ficara a mensagem', 0, '2025-02-13 12:25:28', NULL, NULL, 0),
-(8, 12, 'aviso', 'Consórcio residencial', 'Aqui ficara a mensagem', 0, '2025-02-13 12:25:28', NULL, NULL, 0),
-(9, 1, 'sistema', '🔥Liquida showroom VESTA  - Estamos pertinho de você!', 'Mensagem', 0, '2025-02-13 12:27:13', NULL, NULL, 0),
-(10, 2, 'sistema', '🔥Liquida showroom VESTA  - Estamos pertinho de você!', 'Mensagem', 0, '2025-02-13 12:27:13', NULL, NULL, 0),
-(11, 7, 'sistema', '🔥Liquida showroom VESTA  - Estamos pertinho de você!', 'Mensagem', 1, '2025-02-13 12:27:13', '2025-02-13 12:46:16', NULL, 0),
-(12, 8, 'sistema', '🔥Liquida showroom VESTA  - Estamos pertinho de você!', 'Mensagem', 0, '2025-02-13 12:27:13', NULL, NULL, 0),
-(13, 9, 'sistema', '🔥Liquida showroom VESTA  - Estamos pertinho de você!', 'Mensagem', 1, '2025-02-13 12:27:13', '2025-02-13 14:59:02', NULL, 0),
-(14, 10, 'sistema', '🔥Liquida showroom VESTA  - Estamos pertinho de você!', 'Mensagem', 0, '2025-02-13 12:27:13', NULL, NULL, 0),
-(15, 11, 'sistema', '🔥Liquida showroom VESTA  - Estamos pertinho de você!', 'Mensagem', 0, '2025-02-13 12:27:13', NULL, NULL, 0),
-(16, 12, 'sistema', '🔥Liquida showroom VESTA  - Estamos pertinho de você!', 'Mensagem', 0, '2025-02-13 12:27:13', NULL, NULL, 0),
-(17, 1, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0),
-(18, 2, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0),
-(19, 7, 'sistema', '77777', '777777777', 1, '2025-02-14 14:08:54', '2025-02-14 14:10:11', NULL, 0),
-(20, 8, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0),
-(21, 9, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0),
-(22, 10, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0),
-(23, 11, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0),
-(24, 12, 'sistema', '77777', '777777777', 0, '2025-02-14 14:08:54', NULL, NULL, 0),
-(25, 1, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
-(26, 2, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
-(27, 7, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
-(28, 8, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
-(29, 9, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
-(30, 10, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
-(31, 11, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0),
-(32, 12, 'sistema', 'eeee', 'eeee', 0, '2025-02-14 14:20:39', NULL, NULL, 0);
-
 -- --------------------------------------------------------
 
 --
@@ -640,6 +748,66 @@ CREATE TABLE `notificacoes_excluidas` (
   `data_exclusao` timestamp NOT NULL DEFAULT current_timestamp(),
   `admin_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Despejando dados para a tabela `notificacoes_excluidas`
+--
+
+INSERT INTO `notificacoes_excluidas` (`id`, `notificacao_id`, `data_exclusao`, `admin_id`) VALUES
+(1, 33, '2025-02-14 17:32:36', 2),
+(2, 27, '2025-02-14 17:32:40', 2),
+(3, 28, '2025-02-14 17:32:43', 2),
+(4, 25, '2025-02-14 17:32:46', 2),
+(5, 29, '2025-02-14 17:32:48', 2),
+(6, 35, '2025-02-14 17:32:51', 2),
+(7, 41, '2025-02-14 17:35:05', 2),
+(8, 37, '2025-02-14 17:35:07', 2),
+(9, 38, '2025-02-14 17:35:09', 2),
+(10, 39, '2025-02-14 17:35:12', 2),
+(11, 42, '2025-02-14 17:35:14', 2),
+(12, 43, '2025-02-14 17:35:19', 2),
+(13, 44, '2025-02-14 17:35:21', 2),
+(14, 45, '2025-02-14 17:35:23', 2),
+(15, 46, '2025-02-14 17:35:25', 2),
+(16, 47, '2025-02-14 17:35:27', 2),
+(17, 48, '2025-02-14 17:35:29', 2),
+(18, 49, '2025-02-14 17:35:59', 2),
+(19, 50, '2025-02-14 17:36:01', 2),
+(20, 51, '2025-02-14 17:36:02', 2),
+(21, 52, '2025-02-14 17:36:04', 2),
+(22, 53, '2025-02-14 17:36:06', 2),
+(23, 54, '2025-02-14 17:36:07', 2),
+(24, 34, '2025-02-14 17:36:48', 2),
+(25, 36, '2025-02-14 17:36:50', 2),
+(26, 40, '2025-02-14 17:36:52', 2),
+(27, 26, '2025-02-14 17:36:53', 2),
+(28, 30, '2025-02-14 17:36:55', 2),
+(29, 31, '2025-02-14 17:36:56', 2),
+(30, 32, '2025-02-14 17:36:57', 2),
+(31, 17, '2025-02-14 17:36:58', 2),
+(32, 18, '2025-02-14 17:36:59', 2),
+(33, 19, '2025-02-14 17:37:01', 2),
+(34, 13, '2025-02-14 17:37:02', 2),
+(35, 14, '2025-02-14 17:37:03', 2),
+(36, 21, '2025-02-14 17:37:04', 2),
+(37, 22, '2025-02-14 17:37:04', 2),
+(38, 23, '2025-02-14 17:37:05', 2),
+(39, 24, '2025-02-14 17:37:05', 2),
+(40, 9, '2025-02-14 17:37:06', 2),
+(41, 10, '2025-02-14 17:37:06', 2),
+(42, 11, '2025-02-14 17:37:07', 2),
+(43, 12, '2025-02-14 17:37:07', 2),
+(44, 15, '2025-02-14 17:37:08', 2),
+(45, 16, '2025-02-14 17:37:08', 2),
+(46, 1, '2025-02-14 17:37:09', 2),
+(47, 2, '2025-02-14 17:37:09', 2),
+(48, 3, '2025-02-14 17:37:10', 2),
+(49, 4, '2025-02-14 17:37:10', 2),
+(50, 5, '2025-02-14 17:37:10', 2),
+(51, 6, '2025-02-14 17:37:11', 2),
+(52, 7, '2025-02-14 17:37:11', 2),
+(53, 8, '2025-02-14 17:37:12', 2),
+(54, 20, '2025-02-14 17:37:12', 2);
 
 -- --------------------------------------------------------
 
@@ -745,13 +913,13 @@ CREATE TABLE `usuarios` (
 --
 
 INSERT INTO `usuarios` (`id`, `nome`, `email`, `senha`, `mensagem_base`, `token_dispositivo`, `arquivo_padrao`, `created_at`, `plano_id`, `reset_token`, `reset_token_expira`, `telefone`, `status`, `empresa`, `site`, `foto_perfil`, `data_cadastro`, `perfil_completo`, `nome_negocio`, `segmento`, `publico_alvo`, `objetivo_principal`) VALUES
-(1, 'Publicidade Brasil Já LTDA', 'admin@publicidadeja.com.br', '$2y$10$gmcEBHa5LTknlwOA8flP6OKqWB4UV3JGf/sK3HhIaDlacL/sBwUbS', 'Olá, {nome} 👋 Esperamos que seu dia esteja sendo ótimo! 🌞\r\n\r\nGostaríamos de informar que seu Token do Dispositivo é: 19203333. Esse código é essencial para a segurança de suas informações. Caso tenha qualquer dúvida, fique à vontade para entrar em contato - estaremos felizes em ajudá-lo(a)! 🤝', '', 'LOGOTIPO ZAOLOCAL.png', '2025-02-07 10:03:45', NULL, 'd89c11800d721194898f4723df5d244fd40e68cfc165973be3232cb9d15a0b84', '2025-02-13 14:13:47', NULL, 'ativo', NULL, NULL, NULL, '2025-02-11 16:33:16', 0, NULL, NULL, NULL, NULL),
+(1, 'Leonardo Nascimento', 'admin@publicidadeja.com.br', '$2y$10$gmcEBHa5LTknlwOA8flP6OKqWB4UV3JGf/sK3HhIaDlacL/sBwUbS', 'Olá, {nome} 👋 Esperamos que seu dia esteja sendo ótimo! 🌞\r\n\r\nGostaríamos de informar que seu Token do Dispositivo é: 19203333. Esse código é essencial para a segurança de suas informações. Caso tenha qualquer dúvida, fique à vontade para entrar em contato - estaremos felizes em ajudá-lo(a)! 🤝', '', 'LOGOTIPO ZAOLOCAL.png', '2025-02-07 10:03:45', 2, 'd89c11800d721194898f4723df5d244fd40e68cfc165973be3232cb9d15a0b84', '2025-02-13 14:13:47', '(35) 99194-4831', 'ativo', NULL, NULL, NULL, '2025-02-11 16:33:16', 0, NULL, NULL, NULL, NULL),
 (2, 'Leonardo Nascimento', 'leocorax@gmail.com', '$2y$10$K0NdzpScVc1YUYp7PACUn.13uel7uXEyE1MEjtF49SyYIgGKXH4my', 'Olá, Leonardo Nascimento 👋 Esperamos que seu dia esteja sendo ótimo! 🌞\r\n\r\nGostaríamos de informar que seu Token do Dispositivo é: 19203333. Esse código é essencial para a segurança de suas informações. Caso tenha qualquer dúvida, fique à vontade para entrar em contato - estaremos felizes em ajudá-lo(a)! 🤝', '', '473406168_477716408498685_171445.jpg', '2025-02-11 02:15:20', 1, NULL, NULL, '35991944831', 'ativo', '', '', '../uploads/perfil/profile_67aab4b60b0de.jpg', '2025-02-11 16:33:16', 0, NULL, NULL, NULL, NULL),
-(7, 'Juliana Rodrigues', 'juliana@publicidadeja.com.br', '$2y$10$wDNGNeloYSzkfDKkqNZJBenSxmUiMUfSt9JG5.WSgPDubE2R7b8TG', '{nome} , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', '', 'LOGO ZAPONTO.png', '2025-02-11 19:41:18', NULL, NULL, NULL, '35991944832', 'ativo', '', '', '../uploads/perfil/profile_67acef9612e28.png', '2025-02-11 16:41:18', 1, 'Livraria da Ju', 'varejo', 'Leitores e degustaroes de café', 'atendimento'),
+(7, 'Juliana Rodrigues', 'juliana@publicidadeja.com.br', '$2y$10$wDNGNeloYSzkfDKkqNZJBenSxmUiMUfSt9JG5.WSgPDubE2R7b8TG', '{nome} , esse é o plano: Características:- 200 leads/mês- 1.000 mensagens/mês- Recursos básicos de automação- Sem acesso à IA- Suporte por email.', '', 'LOGO ZAPONTO.png', '2025-02-11 19:41:18', 3, NULL, NULL, '35991944832', 'ativo', '', '', '../uploads/perfil/profile_67acef9612e28.png', '2025-02-11 16:41:18', 1, 'Livraria da Ju', 'varejo', 'Leitores e degustaroes de café', 'atendimento'),
 (8, 'VIVIAN MACIENTE DO NASCIMENTO', 'vivian@publicidadeja.com.br', '$2y$10$yKbBlAuguy.62oPvNkwCw.4.fS8V4XBQypAQfz7ZHeTctwc3f6Us.', NULL, NULL, NULL, '2025-02-12 14:51:31', NULL, NULL, NULL, '35991944831', 'ativo', NULL, NULL, NULL, '2025-02-12 11:51:31', 0, NULL, NULL, NULL, NULL),
-(9, 'Gabriel Nascimento', 'gabriel2@gmail.com', '$2y$10$0Zo3uWDLrOQeVWCRB6eUcekTz.AM8wxaJ5LHOCYBu47UvBmdn8dAG', NULL, NULL, NULL, '2025-02-12 14:57:42', NULL, NULL, NULL, '35991944831', 'ativo', NULL, NULL, NULL, '2025-02-12 11:57:42', 1, 'Bar do Biel', 'alimentacao', 'Pessoas com fome', 'vendas'),
+(9, 'Gabriel Nascimento', 'gabriel2@gmail.com', '$2y$10$0Zo3uWDLrOQeVWCRB6eUcekTz.AM8wxaJ5LHOCYBu47UvBmdn8dAG', NULL, NULL, NULL, '2025-02-12 14:57:42', 1, NULL, NULL, '35991944831', 'ativo', NULL, NULL, NULL, '2025-02-12 11:57:42', 1, 'Bar do Biel', 'alimentacao', 'Pessoas com fome', 'vendas'),
 (10, 'Leonardo Nascimento', 'contato@publicidadeja.com.br', '$2y$10$zboTYYofVBbCUqtpIYNWOu5DsAHkJfMF6xZvU5moie0Won/N9rc6m', NULL, NULL, NULL, '2025-02-12 15:08:06', NULL, NULL, NULL, '35991944831', 'ativo', NULL, NULL, NULL, '2025-02-12 12:08:06', 0, NULL, NULL, NULL, NULL),
-(11, 'Gabriel Nascimento', 'gabriel@gmail.com', '$2y$10$qyaV5e52AVAWwwsJNJsxw.7byzscEiKgCnZ8ocqJ7qogqNmfa2mOS', NULL, NULL, NULL, '2025-02-12 17:23:35', NULL, NULL, NULL, '35991944831', 'ativo', '', '', '../uploads/perfil/profile_67acee5c91a44.png', '2025-02-12 14:23:35', 1, 'Bar do Biel', 'varejo', 'Leitores e degustaroes de café', 'vendas'),
+(11, 'Gabriel Nascimento', 'gabriel@gmail.com', '$2y$10$qyaV5e52AVAWwwsJNJsxw.7byzscEiKgCnZ8ocqJ7qogqNmfa2mOS', NULL, NULL, NULL, '2025-02-12 17:23:35', 4, NULL, NULL, '35991944831', 'ativo', '', '', '../uploads/perfil/profile_67acee5c91a44.png', '2025-02-12 14:23:35', 1, 'Bar do Biel', 'varejo', 'Leitores e degustaroes de café', 'vendas'),
 (12, 'Bago', 'bagu@gmail.com', '$2y$10$84LvFprDGbum90bzpRgI4.NbNnzi8pCnkUXxmaacgBBhuu7dYwaAm', NULL, NULL, NULL, '2025-02-12 19:12:41', NULL, NULL, NULL, '35991944831', 'ativo', NULL, NULL, NULL, '2025-02-12 16:12:41', 1, 'Bagu', 'alimentacao', 'Pessoas com fome', 'fidelizacao');
 
 --
@@ -774,6 +942,34 @@ ALTER TABLE `assinaturas`
   ADD PRIMARY KEY (`id`),
   ADD KEY `usuario_id` (`usuario_id`),
   ADD KEY `plano_id` (`plano_id`);
+
+--
+-- Índices de tabela `chat_contextos`
+--
+ALTER TABLE `chat_contextos`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `idx_usuario_versao` (`usuario_id`,`versao`);
+
+--
+-- Índices de tabela `chat_conversations`
+--
+ALTER TABLE `chat_conversations`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_usuario_data` (`usuario_id`,`data_criacao`);
+
+--
+-- Índices de tabela `chat_errors`
+--
+ALTER TABLE `chat_errors`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_usuario_data` (`usuario_id`,`data_erro`);
+
+--
+-- Índices de tabela `chat_metricas`
+--
+ALTER TABLE `chat_metricas`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_usuario_tipo` (`usuario_id`,`tipo_metrica`);
 
 --
 -- Índices de tabela `configuracoes`
@@ -902,7 +1098,31 @@ ALTER TABLE `administradores`
 -- AUTO_INCREMENT de tabela `assinaturas`
 --
 ALTER TABLE `assinaturas`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+
+--
+-- AUTO_INCREMENT de tabela `chat_contextos`
+--
+ALTER TABLE `chat_contextos`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `chat_conversations`
+--
+ALTER TABLE `chat_conversations`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+
+--
+-- AUTO_INCREMENT de tabela `chat_errors`
+--
+ALTER TABLE `chat_errors`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `chat_metricas`
+--
+ALTER TABLE `chat_metricas`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de tabela `configuracoes`
@@ -914,7 +1134,7 @@ ALTER TABLE `configuracoes`
 -- AUTO_INCREMENT de tabela `dispositivos`
 --
 ALTER TABLE `dispositivos`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT de tabela `envios_em_massa`
@@ -926,7 +1146,7 @@ ALTER TABLE `envios_em_massa`
 -- AUTO_INCREMENT de tabela `fila_mensagens`
 --
 ALTER TABLE `fila_mensagens`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=284;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=335;
 
 --
 -- AUTO_INCREMENT de tabela `ia_interacoes`
@@ -944,7 +1164,7 @@ ALTER TABLE `info_negocios`
 -- AUTO_INCREMENT de tabela `leads_enviados`
 --
 ALTER TABLE `leads_enviados`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=69;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=74;
 
 --
 -- AUTO_INCREMENT de tabela `mensagens_enviadas`
@@ -968,13 +1188,13 @@ ALTER TABLE `notas_lead`
 -- AUTO_INCREMENT de tabela `notificacoes`
 --
 ALTER TABLE `notificacoes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=55;
 
 --
 -- AUTO_INCREMENT de tabela `notificacoes_excluidas`
 --
 ALTER TABLE `notificacoes_excluidas`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=55;
 
 --
 -- AUTO_INCREMENT de tabela `pagamentos`
