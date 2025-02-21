@@ -14,6 +14,13 @@ if (!isset($_SESSION['usuario_id'])) {
     exit;
 }
 
+// Verifica se o usuário tem acesso à IA
+require_once '../includes/functions.php'; // Inclui o arquivo de funções
+$temAcessoIA = verificarAcessoIA($pdo, $_SESSION['usuario_id']);
+
+// Se não tiver acesso, define uma variável para controlar a exibição
+$mostrarMensagemPlano = !$temAcessoIA;
+
 // Chave API do Gemini (substitua pela sua chave real).  DEVE SER UMA VARIÁVEL DE AMBIENTE!
 $apiKey = 'minha_api_aqui'; // ISSO É INSEGURO! USE VARIÁVEIS DE AMBIENTE!
 
@@ -431,6 +438,75 @@ function formatGeminiResponse($response) {
             }
         }
 
+        /* Estilos para a mensagem de upgrade */
+.upgrade-message {
+    text-align: center;
+    padding: 30px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    margin: 20px;
+}
+
+.upgrade-icon {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 20px;
+    animation: float 3s ease-in-out infinite;
+}
+
+.upgrade-message h3 {
+    color: var(--primary-color);
+    font-size: 24px;
+    margin-bottom: 15px;
+}
+
+.upgrade-message p {
+    color: #666;
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+
+.upgrade-message ul {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 30px;
+    text-align: left;
+}
+
+.upgrade-message ul li {
+    padding: 10px 0;
+    color: #555;
+    font-size: 16px;
+}
+
+.upgrade-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px 30px;
+    font-size: 18px;
+    font-weight: 600;
+    border-radius: 50px;
+    transition: transform 0.3s ease;
+}
+
+.upgrade-button:hover {
+    transform: translateY(-3px);
+}
+
+@keyframes float {
+    0% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+    100% {
+        transform: translateY(0px);
+    }
+}
+
     </style>
 </head>
 <body>
@@ -447,12 +523,33 @@ function formatGeminiResponse($response) {
             </button>
         </div>
         <div class="chat-messages" id="chatMessages">
-            <!-- Mensagem de boas-vindas -->
-            <div class="message assistant-message">
-                Olá! Sou especialista em marketing do seu negócio. Como posso ajudar você hoje?
-                <div class="message-time">Agora</div>
-            </div>
+    <?php if ($mostrarMensagemPlano): ?>
+        <!-- Mensagem para usuários sem acesso à IA -->
+        <div class="upgrade-message">
+            <img src="https://publicidadeja.com.br/wp-content/uploads/2025/02/icone-ai-zaponto.png" 
+                 alt="IA Assistant" 
+                 class="upgrade-icon">
+            <h3>Desbloqueie o Poder da IA!</h3>
+            <p>Transforme seu marketing com nossa IA especialista que vai te ajudar a:</p>
+            <ul>
+                <li>🎯 Criar campanhas mais eficientes</li>
+                <li>💡 Gerar ideias criativas para seu negócio</li>
+                <li>📊 Analisar resultados e sugerir melhorias</li>
+                <li>🚀 Aumentar suas conversões</li>
+            </ul>
+            <a href="planos.php" class="btn btn-primary upgrade-button">
+                <span class="material-symbols-outlined">rocket_launch</span>
+                Fazer Upgrade Agora
+            </a>
         </div>
+    <?php else: ?>
+        <!-- Mensagem normal de boas-vindas para usuários com acesso -->
+        <div class="message assistant-message">
+            Olá! Sou especialista em marketing do seu negócio. Como posso ajudar você hoje?
+            <div class="message-time">Agora</div>
+        </div>
+    <?php endif; ?>
+</div>
         <div class="typing-indicator" id="typingIndicator">
             <div class="typing">
                 <span></span>
@@ -480,6 +577,14 @@ function formatGeminiResponse($response) {
     const chatToggleBtn = document.getElementById('chatToggleBtn');
 
     let isChatMinimized = true; // Começa minimizado
+
+
+if (document.querySelector('.upgrade-message')) {
+    // Se a mensagem de upgrade estiver presente, desabilita o input e o botão
+    messageInput.disabled = true;
+    sendButton.disabled = true;
+    messageInput.placeholder = "Faça upgrade para acessar a IA...";
+}
 
     /**
      * Mostra o indicador de digitação.
