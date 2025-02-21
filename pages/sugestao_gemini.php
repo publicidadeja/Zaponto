@@ -40,24 +40,39 @@ function jsonResponse(bool $success, ?string $sugestao = null, ?string $error = 
 }
 
 /**
- * Formata a resposta da IA, incluindo negrito e quebras de linha.
- * Essa função agora é definida aqui para ser usada *neste* arquivo também.
+ * Formata a resposta da IA para exibição.
  *
  * @param string $resposta A resposta bruta da IA.
  * @return string A resposta formatada em HTML.
  */
 function formatarRespostaIA(string $resposta): string
 {
-    // Remove possíveis tags HTML maliciosas e converte entidades HTML
+    // Remove possíveis tags HTML maliciosas
     $resposta = htmlspecialchars($resposta, ENT_QUOTES, 'UTF-8');
-
+    
     // Converte quebras de linha em tags <br>
     $resposta = nl2br($resposta);
-
+    
     // Formata textos entre asteriscos como negrito
     $resposta = preg_replace('/\*(.*?)\*/', '<strong>$1</strong>', $resposta);
-
-    return $resposta;
+    
+    // Monta a estrutura HTML da resposta
+    return <<<HTML
+    <div class="ia-resposta">
+        <div class="ia-header">
+            <i class="fas fa-robot"></i>
+            <span>Sugestão de Mensagem</span>
+        </div>
+        <div class="ia-content">
+            {$resposta}
+        </div>
+        <div class="ia-actions">
+            <button type="button" class="btn btn-success btn-usar-sugestao" onclick="usarSugestao(this)">
+                <i class="fas fa-check me-2"></i>Usar sugestão
+            </button>
+        </div>
+    </div>
+    HTML;
 }
 
 //--------------------------------------------------
@@ -70,6 +85,11 @@ if (!isset($_SESSION['usuario_id'])) {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['mensagem'])) {
     jsonResponse(false, null, 'Mensagem não fornecida');
+}
+
+// Verifica se o usuário tem acesso à IA
+if (!verificarAcessoIA($pdo, $_SESSION['usuario_id'])) {
+    jsonResponse(false, null, 'Seu plano não inclui acesso à IA');
 }
 
 //--------------------------------------------------
@@ -89,14 +109,17 @@ try {
     // Criar instância do GeminiChat
     $gemini = new GeminiChat($pdo, $config['api_key'], $_SESSION['usuario_id']); // Passa a chave API
 
-    // Obter sugestão
-    $mensagem = $_POST['mensagem'];
-    $sugestaoBruta = $gemini->sendMessage($mensagem);  // Obtém a sugestão bruta
-    $sugestaoFormatada = formatarRespostaIA($sugestaoBruta); // Formata a sugestão
+// Criar instância do GeminiChat
+$gemini = new GeminiChat($pdo, $config['api_key'], $_SESSION['usuario_id']);
 
-    jsonResponse(true, $sugestaoFormatada); // Retorna a sugestão formatada
+// Obter sugestão usando o novo método específico
+$mensagem = trim($_POST['mensagem']);
+$sugestaoBruta = $gemini->getSuggestion($mensagem);  // Usa o novo método getSuggestion
+$sugestaoFormatada = formatarRespostaIA($sugestaoBruta);
+
+jsonResponse(true, $sugestaoFormatada);
 
 } catch (Exception $e) {
-    error_log("Erro ao gerar sugestão: " . $e->getMessage());
-    jsonResponse(false, null, 'Erro ao gerar sugestão: ' . $e->getMessage());
+error_log("Erro ao gerar sugestão: " . $e->getMessage());
+jsonResponse(false, null, 'Erro ao gerar sugestão: ' . $e->getMessage());
 }

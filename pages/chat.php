@@ -21,11 +21,24 @@ $temAcessoIA = verificarAcessoIA($pdo, $_SESSION['usuario_id']);
 // Se não tiver acesso, define uma variável para controlar a exibição
 $mostrarMensagemPlano = !$temAcessoIA;
 
-// Chave API do Gemini (substitua pela sua chave real).  DEVE SER UMA VARIÁVEL DE AMBIENTE!
-$apiKey = 'minha_api_aqui'; // ISSO É INSEGURO! USE VARIÁVEIS DE AMBIENTE!
+try {
+    // Obter a chave API do banco de dados
+    $stmt = $pdo->prepare("SELECT api_key FROM configuracoes WHERE tipo = 'gemini'");
+    $stmt->execute();
+    $config = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Inicializa o objeto GeminiChat com a conexão PDO, a chave API e o ID do usuário.
-$chat = new GeminiChat($pdo, $apiKey, $_SESSION['usuario_id']);
+    if (!$config || empty($config['api_key'])) {
+        throw new Exception('Chave API do Gemini não configurada.');
+    }
+
+    // Inicializa o objeto GeminiChat com a conexão PDO, a chave API e o ID do usuário
+    $chat = new GeminiChat($pdo, $config['api_key'], $_SESSION['usuario_id']);
+    
+} catch (Exception $e) {
+    // Log do erro
+    error_log("Erro ao configurar chat Gemini: " . $e->getMessage());
+    die("Erro ao configurar chat: " . $e->getMessage());
+}
 
 // Processa a mensagem enviada pelo usuário.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {

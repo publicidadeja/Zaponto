@@ -64,6 +64,37 @@ class GeminiChat {
         $this->initializeChat();
     }
 
+    // Função que gera a sugestão de IA
+public function getSuggestion($message) {
+    // Prompt específico para sugestões de mensagens
+    $suggestionPrompt = [
+        "contents" => [
+            [
+                "parts" => [
+                    [
+                        "text" => "Você é um especialista em marketing. Melhore a seguinte mensagem para WhatsApp mantendo o mesmo objetivo, mas tornando-a mais persuasiva e profissional. Retorne APENAS a mensagem melhorada, sem explicações ou comentários adicionais:\n\n" . $message
+                    ]
+                ]
+            ]
+        ],
+        "safetySettings" => [
+            ["category" => "HARM_CATEGORY_HARASSMENT", "threshold" => "BLOCK_MEDIUM_AND_ABOVE"],
+            ["category" => "HARM_CATEGORY_HATE_SPEECH", "threshold" => "BLOCK_MEDIUM_AND_ABOVE"],
+            ["category" => "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold" => "BLOCK_MEDIUM_AND_ABOVE"],
+            ["category" => "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold" => "BLOCK_MEDIUM_AND_ABOVE"]
+        ]
+    ];
+
+    // Chama a API com o prompt específico
+    $response = $this->callGeminiAPI($suggestionPrompt);
+    
+    // Remove possíveis explicações ou comentários extras
+    $response = preg_replace('/^(Aqui está|Sugestão:|Mensagem melhorada:|etc\.)/i', '', $response);
+    $response = trim($response);
+    
+    return $response;
+}
+
     /**
      * Inicializa o chat, carregando dados do usuário, histórico e definindo o prompt do sistema.
      */
@@ -509,4 +540,5 @@ class GeminiChat {
         ]);
     }
 }
+
 ?>

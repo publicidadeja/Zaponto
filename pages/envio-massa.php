@@ -82,7 +82,7 @@ function formatarRespostaIA($resposta) {
 <div class="ia-resposta">
     <div class="ia-header">
         <i class="fas fa-robot"></i>
-        <span>Sugestão do Assistente</span>
+        <span>Sugestão de Mensagem</span>
     </div>
     <div class="ia-content">
         {$resposta}
@@ -263,13 +263,18 @@ verificarLimites($pdo, $_SESSION['usuario_id']);
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $filePath = '';
+    $sendErrors = [];
 
     try {
+        // Verificação de limites
         $verificacao = verificarLimitesEnvio($pdo, $_SESSION['usuario_id']);
+        
+        // Captura dos dados do POST
         $dispositivo_id = $_POST['dispositivo_id'] ?? null;
         $mensagem = $_POST['mensagem'] ?? null;
         $selected_leads = $_POST['selected_leads'] ?? [];
 
+        // Validação da quantidade de leads
         $total_leads = count($selected_leads);
         if ($total_leads > $verificacao['restantes']) {
             throw new Exception(sprintf(
@@ -279,13 +284,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             ));
         }
 
+        // Validação dos dados de envio
         $sendErrors = validarDadosEnvio($dispositivo_id, $mensagem, $selected_leads);
 
         if (empty($sendErrors)) {
+            // Processamento do envio
             $filePath = processarUploadArquivo();
+            
+            // Criação da fila de mensagens
             criarFilaMensagens($pdo, $_SESSION['usuario_id'], $dispositivo_id, $mensagem, $filePath, $selected_leads);
+            
+            // Inicia o processamento assíncrono
             iniciarProcessamentoAssincrono($_SESSION['usuario_id'], $dispositivo_id);
-            $_SESSION['mensagem'] = "Envio iniciado! As mensagens serão enviadas em segundo plano.";
+            
+            // Define mensagem de sucesso
+            $_SESSION['mensagem'] = [
+                'tipo' => 'success',
+                'texto' => "Envio iniciado! As mensagens serão enviadas em segundo plano."
+            ];
+
+            // Cria notificação de sucesso
+            criarNotificacao(
+                $pdo,
+                $_SESSION['usuario_id'],
+                'success',
+                'Envio em Massa Iniciado',
+                "Iniciado envio para {$total_leads} contatos"
+            );
         }
     } catch (Exception $e) {
         error_log("Erro ao criar fila de envio: " . $e->getMessage());
@@ -297,17 +322,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $e->getMessage() :
                 "Erro ao processar o envio. Por favor, tente novamente."
         ];
+
+        // Cria notificação de erro
+        criarNotificacao(
+            $pdo,
+            $_SESSION['usuario_id'],
+            'error',
+            'Erro no Envio em Massa',
+            $e->getMessage()
+        );
     }
 
+    // Armazena erros na sessão se houver
     if (!empty($sendErrors)) {
         $_SESSION['erros_envio'] = $sendErrors;
+    } else {
+        // Limpa erros anteriores se o envio foi bem-sucedido
+        unset($_SESSION['erros_envio']);
     }
 
+    // Resposta para requisições AJAX
     if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
         $response = [
             'status' => empty($sendErrors) ? 'success' : 'error',
             'message' => empty($sendErrors) ?
-                "Envio iniciado com sucesso!" :
+                $_SESSION['mensagem']['texto'] :
                 implode(", ", $sendErrors)
         ];
 
@@ -316,7 +355,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit;
     }
 
-    header('Location: ' . $_SERVER['PHP_SELF'] . (empty($sendErrors) ? '?success=1' : '?error=1'));
+    // Redirecionamento para requisições normais
+    if (empty($sendErrors)) {
+        header('Location: ' . $_SERVER['PHP_SELF'] . '?success=1');
+    } else {
+        header('Location: ' . $_SERVER['PHP_SELF'] . '?error=1');
+    }
     exit;
 }
 
