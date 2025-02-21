@@ -222,25 +222,18 @@ function iniciarProcessamentoAssincrono(int $usuario_id, string $dispositivo_id)
  * @param string $mensagem_atual Mensagem atual que precisa de sugestões
  * @return string Sugestão gerada pelo Gemini
  */
-function gerarSugestaoGemini(PDO $pdo, int $usuario_id, string $mensagem_atual): string {
+function gerarSugestaoGemini($pdo, $usuario_id, $mensagem) {
     try {
-        // Recupera a chave API do ambiente
-        $apiKey = getenv('GEMINI_API_KEY'); // Melhor prática: usar variável de ambiente
+        // Cria uma nova instância do GeminiChat
+        $gemini = new GeminiChat($pdo, $usuario_id);
         
-        // Cria uma instância do GeminiChat
-        $gemini = new GeminiChat($pdo, $apiKey, $usuario_id);
-        
-        // Cria um prompt específico para marketing
-        $prompt = "Você é um especialista em marketing digital. Analise esta mensagem e sugira melhorias para aumentar o engajamento e conversão, mantendo elementos personalizados como {nome}. Mantenha o tom profissional e amigável.\n\nMensagem atual: " . $mensagem_atual;
-        
-        // Envia o prompt e recebe a sugestão
-        $sugestao = $gemini->sendMessage($prompt);
+        // Faz a chamada para obter sugestão
+        $sugestao = $gemini->getSuggestion($mensagem);
         
         return $sugestao;
-        
     } catch (Exception $e) {
-        error_log("Erro ao gerar sugestão Gemini: " . $e->getMessage());
-        throw new Exception("Não foi possível gerar uma sugestão no momento.");
+        error_log("Erro ao gerar sugestão: " . $e->getMessage());
+        throw new Exception("Não foi possível gerar a sugestão");
     }
 }
 
@@ -791,9 +784,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <div class="mb-3">
                             <label class="form-label">Mensagem</label>
                             <div class="d-flex justify-content-end mb-2">
-                                <button type="button" class="btn btn-outline-primary btn-sm me-2" id="btnSugestao">
-                                    <i class="fas fa-magic"></i> Sugerir Melhorias
-                                </button>
+                            <button onclick="solicitarSugestao()" class="btn btn-primary">
+    Sugerir Melhorias
+</button>
                             </div>
                             <textarea name="mensagem" id="mensagem" class="form-control" rows="4" required>Preencha aqui com o seu texto...</textarea>
                             <div class="form-text">Use {nome} para incluir o nome do lead na mensagem.</div>
@@ -1579,6 +1572,51 @@ document.getElementById('btnUsarSugestao').addEventListener('click', function() 
 document.getElementById('btnFecharAssistente').addEventListener('click', function() {
     document.getElementById('aiAssistant').classList.add('d-none');
 });
+
+function solicitarSugestao() {
+    const mensagem = document.getElementById('mensagem').value;
+    
+    if (!mensagem.trim()) {
+        alert('Por favor, digite uma mensagem antes de solicitar sugestões.');
+        return;
+    }
+
+    // Mostrar loading
+    document.getElementById('aiAssistant').classList.remove('d-none');
+    document.querySelector('.ai-thinking').classList.remove('d-none');
+    document.getElementById('aiResponse').innerHTML = '';
+
+    $.ajax({
+        url: 'sugestao_gemini.php',
+        method: 'POST',
+        data: {
+            mensagem: mensagem
+        },
+        success: function(response) {
+            document.querySelector('.ai-thinking').classList.add('d-none');
+            
+            if (response.success) {
+                document.getElementById('aiResponse').innerHTML = `
+                    <div class="alert alert-success">
+                        ${response.sugestao}
+                    </div>`;
+                document.getElementById('aiActions').classList.remove('d-none');
+            } else {
+                document.getElementById('aiResponse').innerHTML = `
+                    <div class="alert alert-danger">
+                        ${response.error || 'Erro ao gerar sugestão'}
+                    </div>`;
+            }
+        },
+        error: function() {
+            document.querySelector('.ai-thinking').classList.add('d-none');
+            document.getElementById('aiResponse').innerHTML = `
+                <div class="alert alert-danger">
+                    Erro ao solicitar sugestão. Tente novamente.
+                </div>`;
+        }
+    });
+}
 
 </script>
 </body>
