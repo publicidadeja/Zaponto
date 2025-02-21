@@ -91,3 +91,44 @@ function verificarStatusAssinatura($subscription_id) {
         throw $e;
     }
 }
+
+function handleStripeWebhook($event) {
+    global $pdo;
+    
+    switch ($event->type) {
+        case 'invoice.payment_succeeded':
+            $subscription = $event->data->object;
+            
+            // Buscar usuário pelo Stripe Customer ID
+            $stmt = $pdo->prepare("
+                SELECT id FROM usuarios 
+                WHERE stripe_customer_id = ?
+            ");
+            $stmt->execute([$subscription->customer]);
+            $usuario = $stmt->fetch();
+            
+            if ($usuario) {
+                // Renovar limites
+                renovarLimitesUsuario($pdo, $usuario['id']);
+                
+                // Atualizar status da assinatura
+                $stmt = $pdo->prepare("
+                    UPDATE assinaturas 
+                    SET status = 'ativo',
+                        proximo_pagamento = ?
+                    WHERE usuario_id = ? 
+                    AND stripe_subscription_id = ?
+                ");
+                $stmt->execute([
+                    date('Y-m-d H:i:s', $subscription->current_period_end),
+                    $usuario['id'],
+                    $subscription->id
+                ]);
+            }
+            break;
+            
+        case 'invoice.payment_failed':
+            // Implementar lógica para pagamento falho
+            break;
+    }
+}

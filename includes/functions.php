@@ -255,24 +255,24 @@ function verificarLimitesEnvio($pdo, $usuario_id) {
 
 function renovarLimitesUsuario($pdo, $usuario_id) {
     try {
-        // Buscar informações do plano atual do usuário
+        $pdo->beginTransaction();
+        
+        // Buscar informações do plano atual
         $stmt = $pdo->prepare("
             SELECT a.*, p.limite_leads, p.limite_mensagens 
             FROM assinaturas a
             JOIN planos p ON a.plano_id = p.id
-            WHERE a.usuario_id = ? 
-            AND a.status = 'ativo'
-            ORDER BY a.data_inicio DESC 
-            LIMIT 1
+            WHERE a.usuario_id = ? AND a.status = 'ativo'
+            ORDER BY a.data_inicio DESC LIMIT 1
         ");
         $stmt->execute([$usuario_id]);
         $plano = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$plano) {
-            return false;
+            throw new Exception('Nenhum plano ativo encontrado');
         }
 
-        // Atualizar os limites na tabela de usuários
+        // Atualizar limites do usuário
         $stmt = $pdo->prepare("
             UPDATE usuarios 
             SET leads_disponiveis = ?,
@@ -281,12 +281,32 @@ function renovarLimitesUsuario($pdo, $usuario_id) {
             WHERE id = ?
         ");
         
-        return $stmt->execute([
+        $stmt->execute([
             $plano['limite_leads'],
             $plano['limite_mensagens'],
             $usuario_id
         ]);
+
+        // Registrar log de renovação
+        $stmt = $pdo->prepare("
+            INSERT INTO renovacoes_log 
+            (usuario_id, data_renovacao, status, detalhes)
+            VALUES (?, NOW(), 'sucesso', ?)
+        ");
+        
+        $stmt->execute([
+            $usuario_id,
+            json_encode([
+                'plano_id' => $plano['plano_id'],
+                'limite_leads' => $plano['limite_leads'],
+                'limite_mensagens' => $plano['limite_mensagens']
+            ])
+        ]);
+
+        $pdo->commit();
+        return true;
     } catch (Exception $e) {
+        $pdo->rollBack();
         error_log('Erro ao renovar limites: ' . $e->getMessage());
         return false;
     }

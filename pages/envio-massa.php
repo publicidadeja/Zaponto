@@ -27,6 +27,7 @@ if (!isset($_SESSION['usuario_id'])) {
 
 require_once '../includes/db.php';
 require_once '../includes/functions.php';
+require_once '../includes/GeminiChat.php';
 
 // verificação de limites
 $verificacao = verificarLimitesEnvio($pdo, $_SESSION['usuario_id']);
@@ -209,6 +210,39 @@ function iniciarProcessamentoAssincrono(int $usuario_id, string $dispositivo_id)
 
     if ($httpCode != 200) {
         throw new Exception('Erro ao iniciar o processamento da fila');
+    }
+}
+
+
+/**
+ * Gera sugestões de mensagens usando o Gemini
+ * 
+ * @param PDO $pdo Conexão com o banco de dados
+ * @param int $usuario_id ID do usuário
+ * @param string $mensagem_atual Mensagem atual que precisa de sugestões
+ * @return string Sugestão gerada pelo Gemini
+ */
+function gerarSugestaoGemini(PDO $pdo, int $usuario_id, string $mensagem_atual): string {
+    try {
+        // Chave API do Gemini (use variável de ambiente em produção!)
+        $apiKey = 'minha_api_aqui'; // IMPORTANTE: Use variável de ambiente!
+        
+        // Cria uma instância do GeminiChat
+        $gemini = new GeminiChat($pdo, $apiKey, $usuario_id);
+        
+        // Cria um prompt específico para sugestões de mensagens em massa
+        $prompt = "Analise esta mensagem de marketing e sugira melhorias mantendo o tom e objetivo, 
+                  mas otimizando para maior engajamento e conversão. Mantenha elementos personalizados como {nome}.
+                  Mensagem atual: " . $mensagem_atual;
+        
+        // Envia o prompt e recebe a sugestão
+        $sugestao = $gemini->sendMessage($prompt);
+        
+        return $sugestao;
+        
+    } catch (Exception $e) {
+        error_log("Erro ao gerar sugestão Gemini: " . $e->getMessage());
+        return "Não foi possível gerar uma sugestão no momento. Por favor, tente novamente.";
     }
 }
 
@@ -768,28 +802,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </div>
 
                         <!-- Assistente de IA -->
-                        <div id="aiAssistant" class="mb-3 d-none">
-                            <div class="card">
-                                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                                    <span class="text-primary"><i class="fas fa-robot me-2"></i>Assistente IA</span>
-                                    <button type="button" id="btnFecharAssistente" class="btn btn-sm btn-close"></button>
-                                </div>
-                                <div class="card-body">
-                                    <div class="ai-thinking d-none">
-                                        <div class="d-flex align-items-center">
-                                            <div class="spinner-border spinner-border-sm text-primary me-2"></div>
-                                            <span>Processando sua solicitação...</span>
-                                        </div>
-                                    </div>
-                                    <div id="aiResponse"></div>
-                                    <div class="mt-3 text-end d-none" id="aiActions">
-                                        <button type="button" class="btn btn-success btn-sm" id="btnUsarSugestao">
-                                            <i class="fas fa-check me-1"></i>Adicionar Sugestão
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+<div id="aiAssistant" class="mb-3 d-none">
+    <div class="card">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <span class="text-primary"><i class="fas fa-robot me-2"></i>Assistente IA</span>
+            <button type="button" id="btnFecharAssistente" class="btn btn-sm btn-close"></button>
+        </div>
+        <div class="card-body">
+            <div class="ai-thinking d-none">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                    <span>Processando sua solicitação...</span>
+                </div>
+            </div>
+            <div id="aiResponse"></div>
+            <div class="mt-3 text-end d-none" id="aiActions">
+                <button type="button" class="btn btn-success btn-sm" id="btnUsarSugestao">
+                    <i class="fas fa-check me-1"></i>Usar Sugestão
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
                         <!-- Upload de Arquivo -->
                         <div class="mb-3">
@@ -1626,6 +1660,71 @@ function iniciarMonitoramentoProgresso() {
             });
     }
 }
+
+// Código para o botão de sugestão
+document.getElementById('btnSugestao').addEventListener('click', async function() {
+    const mensagemAtual = document.getElementById('mensagem').value;
+    
+    if (!mensagemAtual.trim()) {
+        alert('Por favor, digite uma mensagem antes de pedir sugestões.');
+        return;
+    }
+    
+    try {
+        // Mostra indicador de carregamento
+        document.getElementById('aiAssistant').classList.remove('d-none');
+        document.querySelector('.ai-thinking').classList.remove('d-none');
+        document.getElementById('aiResponse').innerHTML = '';
+        
+        // Faz a requisição para o novo endpoint que criamos
+        const response = await fetch('sugestao_gemini.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                mensagem: mensagemAtual
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Oculta indicador de carregamento
+        document.querySelector('.ai-thinking').classList.add('d-none');
+        
+        if (data.success) {
+            // Exibe a sugestão formatada
+            document.getElementById('aiResponse').innerHTML = data.sugestao;
+            // Mostra os botões de ação
+            document.getElementById('aiActions').classList.remove('d-none');
+        } else {
+            document.getElementById('aiResponse').innerHTML = 
+                'Desculpe, não foi possível gerar uma sugestão no momento. ' + 
+                (data.error || 'Tente novamente mais tarde.');
+        }
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        document.querySelector('.ai-thinking').classList.add('d-none');
+        document.getElementById('aiResponse').innerHTML = 
+            'Erro ao processar sua solicitação. Por favor, tente novamente.';
+    }
+});
+
+// Adicione também o código para o botão de usar sugestão
+document.getElementById('btnUsarSugestao').addEventListener('click', function() {
+    const sugestao = document.getElementById('aiResponse').innerText;
+    if (sugestao) {
+        document.getElementById('mensagem').value = sugestao;
+        // Oculta o assistente após usar a sugestão
+        document.getElementById('aiAssistant').classList.add('d-none');
+    }
+});
+
+// Adicione o código para o botão de fechar assistente
+document.getElementById('btnFecharAssistente').addEventListener('click', function() {
+    document.getElementById('aiAssistant').classList.add('d-none');
+});
 
 </script>
 </body>
