@@ -1,38 +1,50 @@
 <?php
+// Inicia a sessão, se ainda não estiver iniciada.
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
+// Inclui dependências.
 require_once '../includes/db.php';
 require_once '../includes/GeminiChat.php';
 
+// Verifica se o usuário está logado. Redireciona para a página de login se não estiver.
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php');
     exit;
 }
 
-// Sua chave API do Gemini
-$apiKey = 'minha_api_aqui';  // Substitua pela sua chave real
+// Chave API do Gemini (substitua pela sua chave real).  DEVE SER UMA VARIÁVEL DE AMBIENTE!
+$apiKey = 'minha_api_aqui'; // ISSO É INSEGURO! USE VARIÁVEIS DE AMBIENTE!
 
-// Inicializa o chat
+// Inicializa o objeto GeminiChat com a conexão PDO, a chave API e o ID do usuário.
 $chat = new GeminiChat($pdo, $apiKey, $_SESSION['usuario_id']);
 
-// Processa mensagem enviada (agora com formatação)
+// Processa a mensagem enviada pelo usuário.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
     try {
+        // Envia a mensagem para o Gemini e obtém a resposta.
         $response = $chat->sendMessage($_POST['message']);
 
-        // Formatação da resposta (exemplo, adapte conforme a resposta do Gemini)
+        // Formata a resposta do Gemini para exibição no chat.
         $formattedResponse = formatGeminiResponse($response);
 
+        // Retorna a resposta formatada como JSON.
         echo json_encode(['success' => true, 'message' => $formattedResponse]);
         exit;
     } catch (Exception $e) {
+        // Em caso de erro, retorna uma mensagem de erro como JSON.
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         exit;
     }
 }
 
-// Função para formatar a resposta do Gemini (IMPORTANTE: Adaptar!)
+/**
+ * Formata a resposta do Gemini para HTML.
+ *
+ * @param string $response A resposta original do Gemini.
+ * @return string A resposta formatada em HTML.
+ */
 function formatGeminiResponse($response) {
     // 1. Títulos:  Substituir por tags HTML (h2, h3, etc.)
     $response = preg_replace('/^## (.*)$/m', '<h3>$1</h3>', $response);  // ## Título -> <h3>
@@ -460,89 +472,139 @@ function formatGeminiResponse($response) {
     </div>
 
     <script>
-        const messageInput = document.getElementById('messageInput');
-        const sendButton = document.getElementById('sendButton');
-        const chatMessages = document.getElementById('chatMessages');
-        const typingIndicator = document.getElementById('typingIndicator');
-        const chatWidget = document.getElementById('chatWidget');
-        const chatToggleBtn = document.getElementById('chatToggleBtn');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const chatMessages = document.getElementById('chatMessages');
+    const typingIndicator = document.getElementById('typingIndicator');
+    const chatWidget = document.getElementById('chatWidget');
+    const chatToggleBtn = document.getElementById('chatToggleBtn');
 
-        let isChatMinimized = true; // Começa minimizado
+    let isChatMinimized = true; // Começa minimizado
 
-        function showTypingIndicator() {
-            typingIndicator.style.display = 'block';
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+    /**
+     * Mostra o indicador de digitação.
+     */
+    function showTypingIndicator() {
+        typingIndicator.style.display = 'block';
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    /**
+     * Oculta o indicador de digitação.
+     */
+    function hideTypingIndicator() {
+        typingIndicator.style.display = 'none';
+    }
+
+    /**
+     * Formata a hora atual no formato HH:MM.
+     *
+     * @returns {string} A hora formatada.
+     */
+    function formatTime() {
+        const now = new Date();
+        return now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+   /**
+     * Adiciona uma mensagem ao chat.
+     *
+     * @param {string} message O conteúdo da mensagem.
+     * @param {string} type O tipo de mensagem ('user' ou 'assistant').
+     */
+    function addMessage(message, type) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}-message`; // Aplica a classe CSS correta
+
+        messageDiv.innerHTML = `
+            ${message}
+            <div class="message-time">${formatTime()}</div>
+        `;
+
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    /**
+     * Envia a mensagem do usuário para o servidor e processa a resposta.
+     */
+    async function sendMessage() {
+        const message = messageInput.value.trim();
+        if (!message) return;
+
+        messageInput.value = '';
+        addMessage(message, 'user'); // Adiciona a mensagem do usuário imediatamente
+        showTypingIndicator();
+
+        try {
+            const response = await fetch('chat.php', { // Mesmo arquivo, mas agora com o script PHP no topo
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `message=${encodeURIComponent(message)}`
+            });
+
+            const data = await response.json();
+            hideTypingIndicator();
+
+            if (data.success) {
+                addMessage(data.message, 'assistant'); // Adiciona a resposta do assistente
+            } else {
+                addMessage('Desculpe, ocorreu um erro ao processar sua mensagem.', 'assistant');
+            }
+        } catch (error) {
+            hideTypingIndicator();
+            console.error('Erro detalhado:', error);
+            addMessage('Erro ao enviar mensagem: ' + error.message, 'assistant');
         }
+    }
 
-        function hideTypingIndicator() {
-            typingIndicator.style.display = 'none';
-        }
+    /**
+ * Carrega o histórico de chat do servidor.
+ */
+    async function loadChatHistory() {
+        try {
+            const response = await fetch('get_chat_history.php');
+            const data = await response.json();
 
-        function formatTime() {
-            const now = new Date();
-            return now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        }
-
-        function addMessage(message, type) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${type}-message`;
-            messageDiv.innerHTML = `
-                ${message}
-                <div class="message-time">${formatTime()}</div>
-            `;
-            chatMessages.appendChild(messageDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        async function sendMessage() {
-            const message = messageInput.value.trim();
-            if (!message) return;
-
-            messageInput.value = '';
-            addMessage(message, 'user');
-            showTypingIndicator();
-
-            try {
-                const response = await fetch('chat.php', {  // Certifique-se de que o caminho está correto
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `message=${encodeURIComponent(message)}`
+            if (data.success && Array.isArray(data.data)) {
+                data.data.forEach(msg => {
+                    // CORREÇÃO: Usa msg.sender para determinar o tipo da mensagem
+                    addMessage(msg.mensagem, msg.sender);
                 });
-
-                const data = await response.json();
-                hideTypingIndicator();
-
-                if (data.success) {
-                    addMessage(data.message, 'assistant');
-                } else {
-                    addMessage('Desculpe, ocorreu um erro ao processar sua mensagem.', 'assistant');
-                }
-            } catch (error) {
-                hideTypingIndicator();
-                console.error('Erro detalhado:', error);
-                addMessage('Erro ao enviar mensagem: ' + error.message, 'assistant');
+            } else {
+                console.warn('Nenhuma mensagem no histórico ou erro:', data.error);
             }
+        } catch (error) {
+            console.error('Erro ao carregar histórico:', error);
         }
+    }
 
-        sendButton.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
+    // Event listeners
+    sendButton.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
 
-        chatToggleBtn.addEventListener('click', () => {
-            isChatMinimized = !isChatMinimized;
-            chatWidget.classList.toggle('minimized', isChatMinimized);
-            chatToggleBtn.querySelector('span').textContent = isChatMinimized ? 'expand_less' : 'expand_more';
+    chatToggleBtn.addEventListener('click', () => {
+        isChatMinimized = !isChatMinimized;
+        chatWidget.classList.toggle('minimized', isChatMinimized);
+        chatToggleBtn.querySelector('span').textContent = isChatMinimized ? 'expand_less' : 'expand_more';
 
-            //  Remove a animação de tremor após a primeira interação
-            if (!isChatMinimized) {
-                chatWidget.style.animation = '';
-            }
-        });
+        //  Remove a animação de tremor após a primeira interação
+        if (!isChatMinimized) {
+            chatWidget.style.animation = '';
+        }
+    });
+
+    // Carrega o histórico quando o documento estiver pronto
+    document.addEventListener('DOMContentLoaded', function() {
+        loadChatHistory(); // Carrega o histórico quando a página abrir
+    });
+
     </script>
 </body>
 </html>
