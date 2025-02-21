@@ -252,4 +252,43 @@ function verificarLimitesEnvio($pdo, $usuario_id) {
         'is_ilimitado' => $is_ilimitado
     ];
 }
+
+function renovarLimitesUsuario($pdo, $usuario_id) {
+    try {
+        // Buscar informações do plano atual do usuário
+        $stmt = $pdo->prepare("
+            SELECT a.*, p.limite_leads, p.limite_mensagens 
+            FROM assinaturas a
+            JOIN planos p ON a.plano_id = p.id
+            WHERE a.usuario_id = ? 
+            AND a.status = 'ativo'
+            ORDER BY a.data_inicio DESC 
+            LIMIT 1
+        ");
+        $stmt->execute([$usuario_id]);
+        $plano = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$plano) {
+            return false;
+        }
+
+        // Atualizar os limites na tabela de usuários
+        $stmt = $pdo->prepare("
+            UPDATE usuarios 
+            SET leads_disponiveis = ?,
+                mensagens_disponiveis = ?,
+                ultima_renovacao = NOW()
+            WHERE id = ?
+        ");
+        
+        return $stmt->execute([
+            $plano['limite_leads'],
+            $plano['limite_mensagens'],
+            $usuario_id
+        ]);
+    } catch (Exception $e) {
+        error_log('Erro ao renovar limites: ' . $e->getMessage());
+        return false;
+    }
+}
 ?>
