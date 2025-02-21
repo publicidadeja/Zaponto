@@ -4,6 +4,8 @@ require_once '../includes/db.php';
 require_once '../includes/functions.php';
 require_once '../includes/GeminiChat.php';
 
+header('Content-Type: application/json');
+
 // Verifica autenticação
 if (!isset($_SESSION['usuario_id'])) {
     echo json_encode(['success' => false, 'error' => 'Usuário não autenticado']);
@@ -25,7 +27,7 @@ if (empty($mensagem)) {
 }
 
 try {
-    // Gera a sugestão
+    // Gera a sugestão usando a função do envio-massa.php
     $sugestao = gerarSugestaoGemini($pdo, $_SESSION['usuario_id'], $mensagem);
     
     echo json_encode([
@@ -37,6 +39,6 @@ try {
     error_log("Erro ao gerar sugestão: " . $e->getMessage());
     echo json_encode([
         'success' => false,
-        'error' => 'Erro ao gerar sugestão'
+        'error' => 'Erro ao gerar sugestão. Por favor, tente novamente.'
     ]);
 }

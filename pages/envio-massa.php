@@ -4,7 +4,7 @@
  *  ZapLocal - Envio em Massa (envio-massa.php) - Parte 1
  *
  *  Este arquivo permite aos usuários enviar mensagens em massa para leads via WhatsApp,
- *  integrando-se com uma API externa (Claude) para sugestões de mensagens.
+ *  integrando-se com uma API externa (Gemini) para sugestões de mensagens.
  *
  *  Seções (Parte 1):
  *  - Inicialização e Inclusões
@@ -224,16 +224,14 @@ function iniciarProcessamentoAssincrono(int $usuario_id, string $dispositivo_id)
  */
 function gerarSugestaoGemini(PDO $pdo, int $usuario_id, string $mensagem_atual): string {
     try {
-        // Chave API do Gemini (use variável de ambiente em produção!)
-        $apiKey = 'minha_api_aqui'; // IMPORTANTE: Use variável de ambiente!
+        // Recupera a chave API do ambiente
+        $apiKey = getenv('GEMINI_API_KEY'); // Melhor prática: usar variável de ambiente
         
         // Cria uma instância do GeminiChat
         $gemini = new GeminiChat($pdo, $apiKey, $usuario_id);
         
-        // Cria um prompt específico para sugestões de mensagens em massa
-        $prompt = "Analise esta mensagem de marketing e sugira melhorias mantendo o tom e objetivo, 
-                  mas otimizando para maior engajamento e conversão. Mantenha elementos personalizados como {nome}.
-                  Mensagem atual: " . $mensagem_atual;
+        // Cria um prompt específico para marketing
+        $prompt = "Você é um especialista em marketing digital. Analise esta mensagem e sugira melhorias para aumentar o engajamento e conversão, mantendo elementos personalizados como {nome}. Mantenha o tom profissional e amigável.\n\nMensagem atual: " . $mensagem_atual;
         
         // Envia o prompt e recebe a sugestão
         $sugestao = $gemini->sendMessage($prompt);
@@ -242,7 +240,7 @@ function gerarSugestaoGemini(PDO $pdo, int $usuario_id, string $mensagem_atual):
         
     } catch (Exception $e) {
         error_log("Erro ao gerar sugestão Gemini: " . $e->getMessage());
-        return "Não foi possível gerar uma sugestão no momento. Por favor, tente novamente.";
+        throw new Exception("Não foi possível gerar uma sugestão no momento.");
     }
 }
 
@@ -1199,145 +1197,6 @@ $(document).ready(function() {
 </script>
 
 <script>
-// Integração com a API do Claude (Frontend)
-const PROXY_URL = 'claude_proxy.php'; //  Arquivo proxy
-
-// Função para gerar texto com o Claude
-async function generateWithClaude(prompt) {
-    try {
-        console.log('Enviando prompt:', prompt);
-
-        const response = await fetch(PROXY_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                prompt: prompt
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('Resposta completa da API:', data);
-
-        if (!data.success) {
-            throw new Error(data.error || 'Erro desconhecido na API');
-        }
-
-        if (!data.content || typeof data.content !== 'string') {
-            throw new Error('Resposta sem conteúdo válido');
-        }
-
-        return data.content;
-
-    } catch (error) {
-        console.error('Erro detalhado:', error);
-        throw error;
-    }
-}
-
-// Script para controlar o Assistente de IA
-$(document).ready(function() {
-    const $aiAssistant = $('#aiAssistant');
-    const $aiThinking = $('.ai-thinking');
-    const $aiResponse = $('#aiResponse');
-    const $mensagem = $('#mensagem');
-    const $aiActions = $('#aiActions');
-    const $btnUsarSugestao = $('#btnUsarSugestao');
-
-            // Função para exibir erros
-            function showError(message) {
-        const errorMessage = typeof message === 'object' ?
-            JSON.stringify(message, null, 2) : message;
-
-        $aiResponse.html(`
-            <div class="alert alert-danger">
-                <strong>Erro:</strong> ${errorMessage}<br>
-                <small>Por favor, tente novamente. Se o erro persistir, contate o suporte.</small>
-            </div>
-        `);
-        $aiActions.addClass('d-none');
-    }
-
-    // Função para exibir sugestões/mensagens geradas
-    function showSuccess(content, title = 'Sugestão') {
-        if (!content) {
-            showError('Conteúdo da resposta vazio');
-            return;
-        }
-
-        const sanitizedContent = content
-            .replace(/</g, '<')  // Corrigido para <
-            .replace(/>/g, '>')  // Corrigido para >
-            .replace(/\n/g, '<br>');
-
-        $aiResponse.html(`
-            <div class="alert alert-success">
-                <strong>${title}:</strong><br>
-                ${sanitizedContent}
-            </div>
-        `);
-        $aiActions.removeClass('d-none');
-    }
-
-    // Função para processar requisições à IA
-    async function processAIRequest(prompt, type = 'sugestão') {
-        try {
-            if (!prompt) {
-                throw new Error('Prompt não pode estar vazio');
-            }
-
-            $aiAssistant.removeClass('d-none');
-            $aiThinking.removeClass('d-none');
-            $aiResponse.empty();
-            $aiActions.addClass('d-none');
-
-            console.log('Processando requisição:', type);
-            const result = await generateWithClaude(prompt);
-
-            if (result) {
-                showSuccess(result, type === 'sugestão' ? 'Sugestão' : 'Mensagem Gerada');
-            } else {
-                throw new Error(`Não foi possível gerar a ${type}`);
-            }
-
-        } catch (error) {
-            console.error('Erro ao processar requisição:', error);
-            showError(error.message || 'Erro desconhecido ao processar requisição');
-        } finally {
-            $aiThinking.addClass('d-none');
-        }
-    }
-
-    // Manipula o clique no botão "Sugerir Melhorias"
-    $('#btnSugestao').click(async function() {
-        const currentText = $mensagem.val().trim();
-        if (!currentText) {
-            showError('Por favor, insira uma mensagem para receber sugestões.');
-            return;
-        }
-
-        const prompt = `
-            Analise e melhore esta mensagem de WhatsApp:
-            "${currentText}"
-
-            Requisitos:
-            - Mantenha o tom profissional e amigável
-            - Torne a mensagem mais persuasiva
-            - Mantenha a essência do conteúdo original
-            - Adicione elementos de engajamento
-            - Use emojis apropriados
-            - Mantenha a mensagem concisa
-
-            Responda apenas com a mensagem melhorada, sem explicações adicionais.
-        `.trim();
-
-        await processAIRequest(prompt, 'sugestão');
-    });
 
     // Manipula o clique no botão "Criar Mensagem" (REMOVIDO - Não havia implementação)
     // $('#btnCriarMensagem').click(async function() { ... });  // Removido
@@ -1676,15 +1535,13 @@ document.getElementById('btnSugestao').addEventListener('click', async function(
         document.querySelector('.ai-thinking').classList.remove('d-none');
         document.getElementById('aiResponse').innerHTML = '';
         
-        // Faz a requisição para o novo endpoint que criamos
+        // Faz a requisição para o novo endpoint Gemini
+        const formData = new FormData();
+        formData.append('mensagem', mensagemAtual);
+        
         const response = await fetch('sugestao_gemini.php', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                mensagem: mensagemAtual
-            })
+            body: formData
         });
         
         const data = await response.json();
@@ -1693,14 +1550,11 @@ document.getElementById('btnSugestao').addEventListener('click', async function(
         document.querySelector('.ai-thinking').classList.add('d-none');
         
         if (data.success) {
-            // Exibe a sugestão formatada
             document.getElementById('aiResponse').innerHTML = data.sugestao;
-            // Mostra os botões de ação
             document.getElementById('aiActions').classList.remove('d-none');
         } else {
             document.getElementById('aiResponse').innerHTML = 
-                'Desculpe, não foi possível gerar uma sugestão no momento. ' + 
-                (data.error || 'Tente novamente mais tarde.');
+                'Erro: ' + (data.error || 'Não foi possível gerar uma sugestão.');
         }
         
     } catch (error) {
