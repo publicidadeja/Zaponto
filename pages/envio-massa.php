@@ -1589,9 +1589,8 @@ function solicitarSugestao() {
     $.ajax({
         url: 'sugestao_gemini.php',
         method: 'POST',
-        data: {
-            mensagem: mensagem
-        },
+        data: { mensagem: mensagem },
+        dataType: 'json',
         success: function(response) {
             document.querySelector('.ai-thinking').classList.add('d-none');
             
@@ -1608,11 +1607,11 @@ function solicitarSugestao() {
                     </div>`;
             }
         },
-        error: function() {
+        error: function(xhr, status, error) {
             document.querySelector('.ai-thinking').classList.add('d-none');
             document.getElementById('aiResponse').innerHTML = `
                 <div class="alert alert-danger">
-                    Erro ao solicitar sugestão. Tente novamente.
+                    Erro ao solicitar sugestão: ${error}
                 </div>`;
         }
     });
