@@ -1,17 +1,10 @@
 <?php
 
 /**
- *  ZapLocal - Envio em Massa (envio-massa.php) - Parte 1
+ * ZapLocal - Envio em Massa (envio-massa.php)
  *
- *  Este arquivo permite aos usuários enviar mensagens em massa para leads via WhatsApp,
- *  integrando-se com uma API externa (Gemini) para sugestões de mensagens.
- *
- *  Seções (Parte 1):
- *  - Inicialização e Inclusões
- *  - Funções Auxiliares
- *  - Recuperação de Dados
- *  - Processamento do Formulário (Parte 1: Preparação)
- *  - HTML (Início)
+ * Este arquivo permite aos usuários enviar mensagens em massa para leads via WhatsApp,
+ * integrando-se com uma API externa (Gemini) para sugestões de mensagens.
  */
 
 //--------------------------------------------------
@@ -29,49 +22,79 @@ require_once '../includes/db.php';
 require_once '../includes/functions.php';
 require_once '../includes/GeminiChat.php';
 
-// verificação de limites
-$verificacao = verificarLimitesEnvio($pdo, $_SESSION['usuario_id']);
-
-if (!$verificacao['pode_enviar']) {
-    // Se não puder enviar, mostra mensagem de erro
-    $mensagem = [
-        'tipo' => 'error',
-        'texto' => sprintf(
-            'Você atingiu o limite de envios do seu plano (%d mensagens). 
-             Entre em contato com o suporte para aumentar seu limite.',
-            $verificacao['limite_total']
-        )
-    ];
-    
-    // Se for uma requisição AJAX
-    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-        echo json_encode(['status' => 'error', 'message' => $mensagem['texto']]);
-        exit;
-    }
-    
-    // Se for uma requisição normal
-    $_SESSION['mensagem'] = $mensagem;
-    header('Location: dashboard.php');
-    exit;
-}
-
-// Se ainda tiver envios disponíveis mas estiver próximo do limite (80%)
-if (!$verificacao['is_ilimitado'] && $verificacao['restantes'] <= ($verificacao['limite_total'] * 0.2)) {
-    $mensagem = [
-        'tipo' => 'warning',
-        'texto' => sprintf(
-            'Atenção: Você tem apenas %d envios restantes de um total de %d.',
-            $verificacao['restantes'],
-            $verificacao['limite_total']
-        )
-    ];
-    
-    $_SESSION['mensagem'] = $mensagem;
-}
-
 //--------------------------------------------------
 // Funções Auxiliares
 //--------------------------------------------------
+
+/**
+ * Verifica os limites de envio do usuário.
+ */
+function verificarLimites($pdo, $usuario_id) {
+    $verificacao = verificarLimitesEnvio($pdo, $usuario_id);
+
+    if (!$verificacao['pode_enviar']) {
+        $mensagem = [
+            'tipo' => 'error',
+            'texto' => sprintf(
+                'Você atingiu o limite de envios do seu plano (%d mensagens). 
+                 Entre em contato com o suporte para aumentar seu limite.',
+                $verificacao['limite_total']
+            )
+        ];
+
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+            echo json_encode(['status' => 'error', 'message' => $mensagem['texto']]);
+            exit;
+        }
+
+        $_SESSION['mensagem'] = $mensagem;
+        header('Location: dashboard.php');
+        exit;
+    }
+
+    if (!$verificacao['is_ilimitado'] && $verificacao['restantes'] <= ($verificacao['limite_total'] * 0.2)) {
+        $_SESSION['mensagem'] = [
+            'tipo' => 'warning',
+            'texto' => sprintf(
+                'Atenção: Você tem apenas %d envios restantes de um total de %d.',
+                $verificacao['restantes'],
+                $verificacao['limite_total']
+            )
+        ];
+    }
+}
+
+/**
+ * Formata a resposta da IA para exibição, incluindo negrito e espaçamento.
+ */
+function formatarRespostaIA($resposta) {
+    // Remove possíveis tags HTML maliciosas e converte entidades HTML
+    $resposta = htmlspecialchars($resposta, ENT_QUOTES, 'UTF-8');
+
+    // Converte quebras de linha em tags <br>
+    $resposta = nl2br($resposta);
+
+    // Formata textos entre asteriscos como negrito
+    $resposta = preg_replace('/\*(.*?)\*/', '<strong>$1</strong>', $resposta);
+
+    // Monta a estrutura HTML da resposta
+    return <<<HTML
+<div class="ia-resposta">
+    <div class="ia-header">
+        <i class="fas fa-robot"></i>
+        <span>Sugestão do Assistente</span>
+    </div>
+    <div class="ia-content">
+        {$resposta}
+    </div>
+    <div class="ia-actions">
+        <button type="button" class="btn btn-success btn-usar-sugestao" onclick="usarSugestao(this)">
+            <i class="fas fa-check me-2"></i>Usar sugestão
+        </button>
+    </div>
+</div>
+HTML;
+}
 
 /**
  * Busca dispositivos conectados do usuário.
@@ -93,7 +116,7 @@ function buscarMensagemBaseUsuario(PDO $pdo, int $usuario_id): string
 {
     $stmt = $pdo->prepare("SELECT mensagem_base FROM usuarios WHERE id = ?");
     $stmt->execute([$usuario_id]);
-    $usuario = $stmt->fetch(PDO::FETCH_ASSOC);  // Use FETCH_ASSOC
+    $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
     return $usuario['mensagem_base'] ?? '';
 }
 
@@ -112,9 +135,6 @@ function buscarLeadsUsuario(PDO $pdo, int $usuario_id): array
 
 /**
  * Processa o upload de arquivos.
- *
- * @return string Caminho do arquivo ou string vazia se não houver upload.
- * @throws Exception Se houver erro no upload.
  */
 function processarUploadArquivo(): string
 {
@@ -186,12 +206,10 @@ function criarFilaMensagens(PDO $pdo, int $usuario_id, string $dispositivo_id, s
 
 /**
  * Inicia o processamento assíncrono da fila (via cURL).
- *
- * @throws Exception Se houver erro na requisição cURL.
  */
 function iniciarProcessamentoAssincrono(int $usuario_id, string $dispositivo_id): void
 {
-    $ch = curl_init('http://localhost:3000/process-queue'); //  URL correta
+    $ch = curl_init('http://localhost:3000/process-queue');
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => json_encode([
@@ -200,8 +218,8 @@ function iniciarProcessamentoAssincrono(int $usuario_id, string $dispositivo_id)
         ]),
         CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 1,        // Timeout curto (operação assíncrona)
-        CURLOPT_NOSIGNAL => 1         // Evita timeouts longos do sinal
+        CURLOPT_TIMEOUT => 1,
+        CURLOPT_NOSIGNAL => 1
     ]);
 
     $response = curl_exec($ch);
@@ -213,23 +231,13 @@ function iniciarProcessamentoAssincrono(int $usuario_id, string $dispositivo_id)
     }
 }
 
-
 /**
- * Gera sugestões de mensagens usando o Gemini
- * 
- * @param PDO $pdo Conexão com o banco de dados
- * @param int $usuario_id ID do usuário
- * @param string $mensagem_atual Mensagem atual que precisa de sugestões
- * @return string Sugestão gerada pelo Gemini
+ * Gera sugestões de mensagens usando o Gemini.
  */
 function gerarSugestaoGemini($pdo, $usuario_id, $mensagem) {
     try {
-        // Cria uma nova instância do GeminiChat
         $gemini = new GeminiChat($pdo, $usuario_id);
-        
-        // Faz a chamada para obter sugestão
         $sugestao = $gemini->getSuggestion($mensagem);
-        
         return $sugestao;
     } catch (Exception $e) {
         error_log("Erro ao gerar sugestão: " . $e->getMessage());
@@ -244,23 +252,24 @@ function gerarSugestaoGemini($pdo, $usuario_id, $mensagem) {
 $dispositivos = buscarDispositivosConectados($pdo, $_SESSION['usuario_id']);
 $mensagem_base = buscarMensagemBaseUsuario($pdo, $_SESSION['usuario_id']);
 $leads = buscarLeadsUsuario($pdo, $_SESSION['usuario_id']);
-$sendErrors = []; // Inicializa a variável
+$sendErrors = [];
+
+// Verifica limites de envio
+verificarLimites($pdo, $_SESSION['usuario_id']);
 
 //--------------------------------------------------
-// Processamento do Formulário (Parte 1: Preparação)
+// Processamento do Formulário
 //--------------------------------------------------
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $filePath = '';
 
     try {
-        // Verificar limites de envio considerando quantidade de leads
         $verificacao = verificarLimitesEnvio($pdo, $_SESSION['usuario_id']);
         $dispositivo_id = $_POST['dispositivo_id'] ?? null;
         $mensagem = $_POST['mensagem'] ?? null;
         $selected_leads = $_POST['selected_leads'] ?? [];
-        
-        // Verificar quantidade de leads vs limites disponíveis
+
         $total_leads = count($selected_leads);
         if ($total_leads > $verificacao['restantes']) {
             throw new Exception(sprintf(
@@ -270,69 +279,49 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             ));
         }
 
-        // Validar dados do envio
         $sendErrors = validarDadosEnvio($dispositivo_id, $mensagem, $selected_leads);
 
         if (empty($sendErrors)) {
-            // Processar upload de arquivo se houver
             $filePath = processarUploadArquivo();
-            
-            // Criar fila de mensagens
             criarFilaMensagens($pdo, $_SESSION['usuario_id'], $dispositivo_id, $mensagem, $filePath, $selected_leads);
-            
-            // Iniciar processamento assíncrono
             iniciarProcessamentoAssincrono($_SESSION['usuario_id'], $dispositivo_id);
-
             $_SESSION['mensagem'] = "Envio iniciado! As mensagens serão enviadas em segundo plano.";
         }
     } catch (Exception $e) {
         error_log("Erro ao criar fila de envio: " . $e->getMessage());
         $sendErrors[] = $e->getMessage();
-        
-        // Se for erro de limite, adiciona mensagem específica
-        if (strpos($e->getMessage(), 'mensagens suficientes') !== false) {
-            $_SESSION['mensagem'] = [
-                'tipo' => 'error',
-                'texto' => $e->getMessage()
-            ];
-        } else {
-            $_SESSION['mensagem'] = [
-                'tipo' => 'error',
-                'texto' => "Erro ao processar o envio. Por favor, tente novamente."
-            ];
-        }
+
+        $_SESSION['mensagem'] = [
+            'tipo' => 'error',
+            'texto' => strpos($e->getMessage(), 'mensagens suficientes') !== false ?
+                $e->getMessage() :
+                "Erro ao processar o envio. Por favor, tente novamente."
+        ];
     }
 
-    // Se houver erros de validação
     if (!empty($sendErrors)) {
         $_SESSION['erros_envio'] = $sendErrors;
     }
 
-    // Se for requisição AJAX
     if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
         $response = [
             'status' => empty($sendErrors) ? 'success' : 'error',
-            'message' => empty($sendErrors) ? 
-                "Envio iniciado com sucesso!" : 
+            'message' => empty($sendErrors) ?
+                "Envio iniciado com sucesso!" :
                 implode(", ", $sendErrors)
         ];
-        
+
         header('Content-Type: application/json');
         echo json_encode($response);
         exit;
     }
 
-    // Se for requisição normal, redireciona
-    if (empty($sendErrors)) {
-        header('Location: ' . $_SERVER['PHP_SELF'] . '?success=1');
-    } else {
-        header('Location: ' . $_SERVER['PHP_SELF'] . '?error=1');
-    }
+    header('Location: ' . $_SERVER['PHP_SELF'] . (empty($sendErrors) ? '?success=1' : '?error=1'));
     exit;
 }
 
 //--------------------------------------------------
-// HTML (Início)
+// HTML
 //--------------------------------------------------
 ?>
 
@@ -719,6 +708,58 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 .alert-envio.fadeOut {
     animation: fadeOut 0.3s ease-in-out forwards;
 }
+
+.ia-resposta {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin: 15px 0;
+    overflow: hidden;
+}
+
+.ia-header {
+    background-color: #e9ecef;
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.ia-header i {
+    color: #0098fc;
+}
+
+.ia-content {
+    padding: 15px;
+    line-height: 1.6;
+    color: #333;
+}
+
+.ia-content strong {
+    color: #0098fc;
+}
+
+.ia-actions {
+    padding: 10px 15px;
+    background-color: #fff;
+    border-top: 1px solid #e9ecef;
+    text-align: right;
+}
+
+.btn-usar-sugestao {
+    background-color: #2CC149;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn-usar-sugestao:hover {
+    background-color: #25a33d;
+}
     </style>
 </head>
 <body>
@@ -949,7 +990,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <?php include '../includes/footer.php'; ?>
 
-<!-- Scripts (Parte 1) -->
+<!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
@@ -963,7 +1004,7 @@ $(document).ready(function() {
         scrollY: '50vh',
         scrollCollapse: true,
         paging: true,
-        language: { // Configuração direta, em vez de language.url
+        language: {
             "sEmptyTable":   "Nenhum registro encontrado",
             "sInfo":         "Mostrando de _START_ até _END_ de _TOTAL_ registros",
             "sInfoEmpty":    "Mostrando 0 até 0 de 0 registros",
@@ -1048,9 +1089,7 @@ $(document).ready(function() {
         }
     });
 });
-</script>
 
-<script>
 // Script para confirmar a seleção de leads e atualizar a contagem
 $(document).ready(function() {
     // Manipula o clique no botão "Confirmar Seleção"
@@ -1187,33 +1226,66 @@ $(document).ready(function() {
      $('#massMessageForm').off('submit');
 });
 // --- Fim: Código para UMA confirmação estilizada ---
-</script>
 
-<script>
+// Script para o assistente de IA e atualização do preview da mensagem
+$(document).ready(function() {
+    const $aiAssistant = $('#aiAssistant');
+    const $aiThinking = $('.ai-thinking');
+    const $aiResponse = $('#aiResponse');
+    const $btnUsarSugestao = $('#btnUsarSugestao');
+    const $mensagem = $('#mensagem');
 
-    // Manipula o clique no botão "Criar Mensagem" (REMOVIDO - Não havia implementação)
-    // $('#btnCriarMensagem').click(async function() { ... });  // Removido
+    // Função para mostrar erros
+    function showError(message) {
+        $aiResponse.html(`<div class="alert alert-danger">${message}</div>`);
+    }
 
-    // Manipula o clique no botão "Usar Sugestão"
-    $btnUsarSugestao.click(function() {
-        const $successAlert = $aiResponse.find('.alert-success');
-        if (!$successAlert.length) {
-            showError('Nenhuma sugestão disponível para usar');
+    // Função para solicitar sugestão da IA
+    window.solicitarSugestao = async function() {
+        const mensagem = $mensagem.val().trim();
+        if (!mensagem) {
+            alert('Por favor, digite uma mensagem antes de solicitar sugestões.');
             return;
         }
 
-        const suggestion = $successAlert.text()
-            .replace('Sugestão:', '')
-            .replace('Mensagem Gerada:', '')
-            .trim();
+        $aiAssistant.removeClass('d-none');
+        $aiThinking.removeClass('d-none');
+        $aiResponse.html('');
 
-        if (suggestion) {
-            $mensagem.val(suggestion);
-            updateMessagePreview(); // Atualiza o preview
-            $aiAssistant.addClass('d-none');
-        } else {
-            showError('Nenhum conteúdo disponível na sugestão');
+        try {
+            const response = await fetch('sugestao_gemini.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `mensagem=${encodeURIComponent(mensagem)}`
+            });
+
+            const data = await response.json();
+            $aiThinking.addClass('d-none');
+
+            if (data.success) {
+                $aiResponse.html(data.sugestao); // Usa a função formatarRespostaIA
+                $('#aiActions').removeClass('d-none');
+            } else {
+                showError(data.error || 'Erro ao gerar sugestão.');
+            }
+        } catch (error) {
+            $aiThinking.addClass('d-none');
+            showError('Erro ao solicitar sugestão. Por favor, tente novamente.');
         }
+    };
+
+    // Manipula o clique no botão "Usar Sugestão"
+     $('#btnUsarSugestao').click(function() {
+        const sugestao = $('#aiResponse').html(); // Pega o HTML formatado
+            if (sugestao) {
+                // Extrai o texto da sugestão, removendo tags HTML e mantendo a formatação
+                const tempDiv = document.createElement("div");
+                tempDiv.innerHTML = sugestao;
+                const textoSugestao = tempDiv.textContent || tempDiv.innerText || "";
+
+                $('#mensagem').val(textoSugestao.trim());
+                $aiAssistant.addClass('d-none'); // Oculta o assistente
+            }
     });
 
     // Atualiza o preview da mensagem em tempo real (com debounce)
@@ -1262,9 +1334,7 @@ $(document).ready(function() {
         return false;
     };
 });
-</script>
 
-<script>
 // Script para o envio em massa (refatorado e melhorado)
 $(document).ready(function() {
     const leads = <?php echo json_encode($leads); ?>;
@@ -1432,9 +1502,7 @@ $(document).ready(function() {
         }, 3000);
     }
 });
-</script>
 
-<script>
 // Função para iniciar o progresso
 function iniciarProgresso(total) {
     // Mostra o container
@@ -1457,8 +1525,6 @@ function atualizarProgresso(atual, total) {
     $('#progressText').text(porcentagem + '%');
     $('#currentMessage').text(atual);
 }
-
-
 
 function iniciarMonitoramentoProgresso() {
     // Mostra o container
@@ -1484,28 +1550,28 @@ function iniciarMonitoramentoProgresso() {
                 totalMessages.textContent = (data.sent + data.pending + data.failed);
 
                 if (data.status === 'completed') {
-    clearInterval(progressInterval);
-    setTimeout(() => {
-        // Criar elemento de alerta
-        const alertDiv = document.createElement('div');
-        alertDiv.className = 'alert-envio';
-        alertDiv.innerHTML = `
-            <i class="fas fa-check-circle"></i>
-            <div class="alert-envio-content">Envio concluído!</div>
-        `;
-        
-        // Adicionar ao corpo do documento
-        document.body.appendChild(alertDiv);
-        
-        // Remover após 3 segundos com animação
-        setTimeout(() => {
-            alertDiv.classList.add('fadeOut');
-            setTimeout(() => {
-                alertDiv.remove();
-            }, 300);
-        }, 3000);
-    }, 1000);
-}
+                    clearInterval(progressInterval);
+                    setTimeout(() => {
+                        // Criar elemento de alerta
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert-envio';
+                        alertDiv.innerHTML = `
+                            <i class="fas fa-check-circle"></i>
+                            <div class="alert-envio-content">Envio concluído!</div>
+                        `;
+
+                        // Adicionar ao corpo do documento
+                        document.body.appendChild(alertDiv);
+
+                        // Remover após 3 segundos com animação
+                        setTimeout(() => {
+                            alertDiv.classList.add('fadeOut');
+                            setTimeout(() => {
+                                alertDiv.remove();
+                            }, 300);
+                        }, 3000);
+                    }, 1000);
+                }
             })
             .catch(error => {
                 console.error('Erro ao verificar progresso:', error);
@@ -1513,110 +1579,58 @@ function iniciarMonitoramentoProgresso() {
     }
 }
 
-// Código para o botão de sugestão
-document.getElementById('btnSugestao').addEventListener('click', async function() {
-    const mensagemAtual = document.getElementById('mensagem').value;
-    
-    if (!mensagemAtual.trim()) {
-        alert('Por favor, digite uma mensagem antes de pedir sugestões.');
-        return;
+function usarSugestao(button) {
+    // Encontra o conteúdo da sugestão
+    const sugestaoContent = button.closest('.ia-resposta').querySelector('.ia-content').innerHTML;
+
+    // Converte o HTML em texto plano
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = sugestaoContent;
+    const textoSugestao = tempDiv.textContent || tempDiv.innerText;
+
+    // Encontra o campo de mensagem e insere a sugestão
+    const campoMensagem = document.getElementById('mensagem');
+    if (campoMensagem) {
+        campoMensagem.value = textoSugestao.trim();
+
+        // Adiciona uma animação suave
+        campoMensagem.style.backgroundColor = '#e8f0fe';
+        setTimeout(() => {
+            campoMensagem.style.backgroundColor = '';
+        }, 300);
+
+        // Feedback visual
+        const btnUsado = button;
+        btnUsado.innerHTML = '<i class="fas fa-check me-2"></i>Sugestão aplicada';
+        btnUsado.disabled = true;
+
+        // Restaura o botão após 2 segundos
+        setTimeout(() => {
+            btnUsado.innerHTML = '<i class="fas fa-check me-2"></i>Usar sugestão';
+            btnUsado.disabled = false;
+        }, 2000);
     }
-    
-    try {
-        // Mostra indicador de carregamento
-        document.getElementById('aiAssistant').classList.remove('d-none');
-        document.querySelector('.ai-thinking').classList.remove('d-none');
-        document.getElementById('aiResponse').innerHTML = '';
-        
-        // Faz a requisição para o novo endpoint Gemini
-        const formData = new FormData();
-        formData.append('mensagem', mensagemAtual);
-        
-        const response = await fetch('sugestao_gemini.php', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const data = await response.json();
-        
-        // Oculta indicador de carregamento
-        document.querySelector('.ai-thinking').classList.add('d-none');
-        
-        if (data.success) {
-            document.getElementById('aiResponse').innerHTML = data.sugestao;
-            document.getElementById('aiActions').classList.remove('d-none');
-        } else {
-            document.getElementById('aiResponse').innerHTML = 
-                'Erro: ' + (data.error || 'Não foi possível gerar uma sugestão.');
-        }
-        
-    } catch (error) {
-        console.error('Erro:', error);
-        document.querySelector('.ai-thinking').classList.add('d-none');
-        document.getElementById('aiResponse').innerHTML = 
-            'Erro ao processar sua solicitação. Por favor, tente novamente.';
-    }
-});
-
-// Adicione também o código para o botão de usar sugestão
-document.getElementById('btnUsarSugestao').addEventListener('click', function() {
-    const sugestao = document.getElementById('aiResponse').innerText;
-    if (sugestao) {
-        document.getElementById('mensagem').value = sugestao;
-        // Oculta o assistente após usar a sugestão
-        document.getElementById('aiAssistant').classList.add('d-none');
-    }
-});
-
-// Adicione o código para o botão de fechar assistente
-document.getElementById('btnFecharAssistente').addEventListener('click', function() {
-    document.getElementById('aiAssistant').classList.add('d-none');
-});
-
-function solicitarSugestao() {
-    const mensagem = document.getElementById('mensagem').value;
-    
-    if (!mensagem.trim()) {
-        alert('Por favor, digite uma mensagem antes de solicitar sugestões.');
-        return;
-    }
-
-    // Mostrar loading
-    document.getElementById('aiAssistant').classList.remove('d-none');
-    document.querySelector('.ai-thinking').classList.remove('d-none');
-    document.getElementById('aiResponse').innerHTML = '';
-
-    $.ajax({
-        url: 'sugestao_gemini.php',
-        method: 'POST',
-        data: { mensagem: mensagem },
-        dataType: 'json',
-        success: function(response) {
-            document.querySelector('.ai-thinking').classList.add('d-none');
-            
-            if (response.success) {
-                document.getElementById('aiResponse').innerHTML = `
-                    <div class="alert alert-success">
-                        ${response.sugestao}
-                    </div>`;
-                document.getElementById('aiActions').classList.remove('d-none');
-            } else {
-                document.getElementById('aiResponse').innerHTML = `
-                    <div class="alert alert-danger">
-                        ${response.error || 'Erro ao gerar sugestão'}
-                    </div>`;
-            }
-        },
-        error: function(xhr, status, error) {
-            document.querySelector('.ai-thinking').classList.add('d-none');
-            document.getElementById('aiResponse').innerHTML = `
-                <div class="alert alert-danger">
-                    Erro ao solicitar sugestão: ${error}
-                </div>`;
-        }
-    });
 }
 
+// Garante que o campo de mensagem existe antes de adicionar eventos
+document.addEventListener('DOMContentLoaded', function() {
+    const campoMensagem = document.getElementById('mensagem');
+    if (campoMensagem) {
+        // Adiciona evento de foco para limpar o texto padrão
+        campoMensagem.addEventListener('focus', function() {
+            if (this.value === 'Preencha aqui com o seu texto...') {
+                this.value = '';
+            }
+        });
+
+        // Adiciona evento de perda de foco para restaurar o texto padrão se vazio
+        campoMensagem.addEventListener('blur', function() {
+            if (this.value.trim() === '') {
+                this.value = 'Preencha aqui com o seu texto...';
+            }
+        });
+    }
+});
 </script>
 </body>
 </html>
