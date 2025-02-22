@@ -41,8 +41,9 @@ if (!empty($filtros['status'])) {
 }
 
 if (!empty($filtros['busca'])) {
-    $query .= " AND (l.nome LIKE :busca OR l.numero LIKE :busca)";
-    $params['busca'] = '%' . $filtros['busca'] . '%';
+    $query .= " AND (l.nome LIKE :busca_nome OR l.numero LIKE :busca_numero)";
+    $params['busca_nome'] = '%' . $filtros['busca'] . '%';
+    $params['busca_numero'] = '%' . $filtros['busca'] . '%';
 }
 
 // Ordenação
