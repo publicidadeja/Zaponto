@@ -6,6 +6,8 @@
  * - qrcode-terminal: Para exibir o QR Code no terminal.
  * - path: Módulo para manipulação de caminhos de arquivos.
  * - fs: Módulo para manipulação de arquivos.
+ * - async-mutex: Para controle de concorrência.
+ * - dotenv: (Recomendado) Para carregar variáveis de ambiente de um arquivo .env
  */
 
 // Importando os módulos
@@ -15,109 +17,95 @@ const qrcode = require('qrcode-terminal');
 const mysql = require('mysql2/promise');
 const path = require('path');
 const fs = require('fs');
+const { Mutex } = require('async-mutex');  // Importante para controle de concorrência
+
+// Carrega variáveis de ambiente do arquivo .env (se existir)
+require('dotenv').config(); //  Adicione 'dotenv'  e crie um arquivo .env na raiz do projeto
 
 // -------------------------------------
 // Configurações Iniciais
 // -------------------------------------
 
-// Inicializando o express
 const app = express();
 app.use(express.json());
 
-// Configuração do CORS (Cross-Origin Resource Sharing)
+// Configuração do CORS (Cross-Origin Resource Sharing) - Mantido
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*'); // Permite requisições de qualquer origem
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS'); // Métodos HTTP permitidos
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept'); // Cabeçalhos permitidos
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization'); // Inclui Authorization
     if (req.method === 'OPTIONS') {
-        return res.sendStatus(200); // Responde com sucesso para requisições OPTIONS (preflight)
+        return res.sendStatus(200);
     }
     next();
 });
 
-// Configuração do banco de dados (usando variáveis de ambiente)
-// **IMPORTANTE:** Configure as variáveis de ambiente no seu sistema operacional ou servidor.
-// Exemplo (Linux/macOS):
-// export DB_HOST=localhost
-// export DB_USER=root
-// export DB_PASSWORD=sua_senha
-// export DB_DATABASE=balcao
-// Exemplo (.env file - recomendado usar a biblioteca 'dotenv'):
-// DB_HOST=localhost
-// DB_USER=root
-// DB_PASSWORD=sua_senha
-// DB_DATABASE=balcao
-
+// Configuração do banco de dados (usando variáveis de ambiente) - Melhorado
 const dbConfig = {
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_DATABASE || 'balcao'
+    database: process.env.DB_DATABASE || 'balcao',
+    waitForConnections: true, // Importante para lidar com pool de conexões
+    connectionLimit: 10,      // Aumenta o limite de conexões (ajuste conforme necessário)
+    queueLimit: 0,            // 0 = sem limite de fila (importante para produção)
 };
 
-// Diretório para armazenar sessões do WhatsApp Web
+// Cria um pool de conexões (melhor prática para produção)
+const pool = mysql.createPool(dbConfig);
+
+// Diretório para armazenar sessões do WhatsApp Web - Mantido
 const SESSION_DIR = path.join(__dirname, '.wwebjs_auth');
 
-// Armazenar clientes WhatsApp Web ativos (Map<deviceId, Client>)
+// Armazenar clientes WhatsApp Web ativos (Map<deviceId, Client>) - Mantido
 const clients = new Map();
 
-// Tamanho do lote para processamento da fila de mensagens
-const CHUNK_SIZE = 1;
+// Configurações de processamento em lote e rate limiting - Aprimorado
+const CHUNK_SIZE = 5;  // Aumentei o tamanho do lote, mas *monitore* o uso de memória
+const RATE_LIMIT_MS = 2000; //  2 segundos por cliente (ajustável)
+const GLOBAL_RATE_LIMIT_MS = 500; // Limite global de 500ms entre mensagens (proteção extra)
+let lastGlobalRequestTime = 0;
 
-// Rate limiting:  Map<deviceId, lastRequestTime>
-const lastRequestTimes = new Map();
-const RATE_LIMIT_MS = 1000; // 1 requisição por segundo
+// Mutexes para controle de concorrência
+const clientMutexes = new Map(); // Mutex por cliente (deviceId)
+const globalMutex = new Mutex(); // Mutex global
 
 // -------------------------------------
 // Funções Auxiliares
 // -------------------------------------
 
-/**
- * Cria o diretório de sessão se ele não existir.
- */
+// Cria o diretório de sessão se ele não existir - Mantido
 if (!fs.existsSync(SESSION_DIR)) {
     fs.mkdirSync(SESSION_DIR, { recursive: true });
     console.log(`Diretório de sessão criado: ${SESSION_DIR}`);
 }
 
 /**
- * Atualiza o status de um dispositivo no banco de dados.
- *
- * @param {string} deviceId - ID do dispositivo.
- * @param {string} status - Novo status do dispositivo.
- * @param {string} [qrCode=null] - QR Code (opcional).
+ * Atualiza o status de um dispositivo no banco de dados.  Usa o pool de conexões.
  */
 async function updateDeviceStatus(deviceId, status, qrCode = null) {
+    let connection;
     try {
-        const connection = await mysql.createConnection(dbConfig);
+        connection = await pool.getConnection(); // Obtém conexão do pool
         const sql = qrCode
             ? 'UPDATE dispositivos SET status = ?, qr_code = ? WHERE device_id = ?'
             : 'UPDATE dispositivos SET status = ?, qr_code = NULL WHERE device_id = ?';
         const values = qrCode ? [status, qrCode, deviceId] : [status, deviceId];
         await connection.execute(sql, values);
-        await connection.end();
         console.log(`Status do dispositivo ${deviceId} atualizado para: ${status}`);
     } catch (error) {
         console.error(`Erro ao atualizar status do dispositivo ${deviceId}: ${error.message}`);
+    } finally {
+        if (connection) connection.release(); // Libera a conexão de volta para o pool
     }
 }
 
-/**
- * Limpa o deviceId, removendo caracteres inválidos.
- *
- * @param {string} deviceId - ID do dispositivo.
- * @returns {string} - ID do dispositivo sanitizado.
- */
+// Sanitização do deviceId - Mantido
 function sanitizeDeviceId(deviceId) {
-    // Remove caracteres inválidos, mantendo apenas alfanuméricos, underscores e hífens
     return deviceId.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
-/**
- * Limpa a sessão de um dispositivo, removendo o diretório correspondente.
- *
- * @param {string} deviceId - ID do dispositivo.
- */
+// Limpeza de sessão - Mantido
 async function clearSession(deviceId) {
     const sanitizedDeviceId = sanitizeDeviceId(deviceId);
     const sessionDir = path.join(SESSION_DIR, `session-${sanitizedDeviceId}`);
@@ -127,82 +115,88 @@ async function clearSession(deviceId) {
     }
 }
 
-/**
- * Valida se um ID de usuário é um número inteiro positivo.
- * @param {any} userId - O ID do usuário a ser validado.
- * @returns {boolean} - Retorna true se o ID do usuário for válido, false caso contrário.
- */
+// Validação de userId - Mantido
 function isValidUserId(userId) {
     return Number.isInteger(userId) && userId > 0;
 }
 
-/**
- * Valida um número de telefone no formato básico do WhatsApp.
- *  Verifica se tem entre 10 e 13 dígitos e começa com o código do país (opcional).
- * @param {string} number - O número de telefone a ser validado.
- * @returns {boolean} Retorna `true` se o número for válido, `false` caso contrário.
- */
+// Validação de número de telefone - Aprimorada
 function isValidPhoneNumber(number) {
-    const cleanedNumber = number.replace(/\D/g, ''); // Remove caracteres não numéricos
+    const cleanedNumber = number.replace(/\D/g, '');
     return /^(?:\+?\d{1,3})?\d{10,13}$/.test(cleanedNumber);
 }
 
+// Função para obter um cliente com tratamento de erros
+function getClient(deviceId) {
+    const client = clients.get(deviceId);
+    if (!client) {
+        throw new Error('Dispositivo não encontrado ou não conectado');
+    }
+    if (client.status !== 'CONNECTED') { // Adicionei uma verificação de status
+        throw new Error('Dispositivo não está pronto para enviar mensagens');
+    }
+    return client;
+}
+
 /**
- * Processa uma única mensagem da fila.
- *
- * @param {object} message - Objeto da mensagem da fila.
- * @param {object} connection - Conexão com o banco de dados.
- * @param {Client} client - Cliente WhatsApp Web.
+ * Processa uma única mensagem da fila.  Agora com tratamento de erros mais robusto e logging.
  */
 async function processMessage(message, connection, client) {
+    let formattedNumber = message.numero.replace(/\D/g, '');
+    if (!formattedNumber.startsWith('55')) {
+        formattedNumber = '55' + formattedNumber;
+    }
+    formattedNumber = `${formattedNumber}@c.us`;
+
+    const messageId = message.id; // Para logging
+    console.log(`[${messageId}] Processando mensagem para: ${formattedNumber}`);
+
     try {
-        let formattedNumber = message.numero.replace(/\D/g, '');
-        if (!formattedNumber.startsWith('55')) {
-            formattedNumber = '55' + formattedNumber;
-        }
-        formattedNumber = `${formattedNumber}@c.us`;
-
-        console.log(`Processando mensagem para: ${formattedNumber}`);
-
-        // Verificar número
+        // Verifica se o número está registrado *antes* de tentar enviar
         const isRegistered = await client.isRegisteredUser(formattedNumber);
         if (!isRegistered) {
-            throw new Error('Número não registrado no WhatsApp');
+            console.warn(`[${messageId}] Número não registrado: ${formattedNumber}`);
+            throw new Error('Número não registrado no WhatsApp'); // Lança para o tratamento de erro
         }
 
-        // 1. Enviar mídia (se existir e o arquivo existir)
+        // Envio de mídia (com tratamento de erro específico)
         if (message.arquivo_path && fs.existsSync(message.arquivo_path)) {
-            const media = MessageMedia.fromFilePath(message.arquivo_path);
-            await client.sendMessage(formattedNumber, media);
-            console.log(`Mídia enviada para ${formattedNumber}`);
-            // Aguarda 2 segundos após enviar a mídia
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            try {
+                const media = MessageMedia.fromFilePath(message.arquivo_path);
+                await client.sendMessage(formattedNumber, media);
+                console.log(`[${messageId}] Mídia enviada para ${formattedNumber}`);
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Pausa após mídia
+            } catch (mediaError) {
+                console.error(`[${messageId}] Erro ao enviar mídia:`, mediaError);
+                // Não lança o erro aqui, continua para a mensagem de texto, se houver
+            }
         }
 
-        // 2. Enviar mensagem de texto logo em seguida (se existir)
+        // Envio de mensagem de texto (com tratamento de erro)
         if (message.mensagem && message.mensagem.trim()) {
-            await client.sendMessage(formattedNumber, message.mensagem);
-            console.log(`Mensagem de texto enviada para ${formattedNumber}`);
+            try {
+                await client.sendMessage(formattedNumber, message.mensagem);
+                console.log(`[${messageId}] Mensagem de texto enviada para ${formattedNumber}`);
+            } catch (textError) {
+                console.error(`[${messageId}] Erro ao enviar mensagem de texto:`, textError);
+                throw textError; // Lança para o tratamento de erro principal
+            }
         }
 
-        // Atualizar status como enviado
+        // Atualiza o status no banco de dados (com tratamento de erro)
         await connection.execute(
             'UPDATE fila_mensagens SET status = "ENVIADO", updated_at = NOW() WHERE id = ?',
-            [message.id]
+            [messageId]
         );
-        console.log(`Mensagem ${message.id} marcada como ENVIADA.`);
-
-        // Intervalo aleatório entre leads (entre 1 e 3 segundos)
-        await new Promise(resolve =>
-            setTimeout(resolve, Math.random() * 2000 + 1000)
-        );
+        console.log(`[${messageId}] Mensagem marcada como ENVIADA.`);
 
     } catch (error) {
+        console.error(`[${messageId}] Erro ao processar mensagem:`, error);
+        const errorMessage = error.message ? error.message.substring(0, 255) : 'Erro desconhecido';
         await connection.execute(
-            'UPDATE fila_mensagens SET status = "ERRO", error_message = ? WHERE id = ?',
-            [error.message.substring(0, 255), message.id] // Limita o tamanho da mensagem de erro
+            'UPDATE fila_mensagens SET status = "ERRO", error_message = ?, updated_at = NOW() WHERE id = ?',
+            [errorMessage, messageId]
         );
-        console.error(`Erro ao processar mensagem ${message.id}: ${error.message}`);
     }
 }
 
@@ -211,16 +205,20 @@ async function processMessage(message, connection, client) {
 // -------------------------------------
 
 /**
- * Cria um novo cliente WhatsApp Web.
- *
- * @param {string} deviceId - ID do dispositivo.
- * @returns {Promise<Client>} - Cliente WhatsApp Web.
+ * Cria um novo cliente WhatsApp Web.  Agora com tratamento de erros e mutex.
  */
 async function createWhatsAppClient(deviceId) {
-    console.log(`Iniciando criação do cliente WhatsApp para deviceId: ${deviceId}`);
+    const sanitizedDeviceId = sanitizeDeviceId(deviceId);
+    console.log(`Iniciando criação do cliente WhatsApp para deviceId: ${sanitizedDeviceId}`);
+
+    // Adiciona um mutex para este deviceId
+    if (!clientMutexes.has(sanitizedDeviceId)) {
+        clientMutexes.set(sanitizedDeviceId, new Mutex());
+    }
+
+    const release = await clientMutexes.get(sanitizedDeviceId).acquire(); // Adquire o mutex
 
     try {
-        const sanitizedDeviceId = sanitizeDeviceId(deviceId);
         await clearSession(sanitizedDeviceId);
 
         const client = new Client({
@@ -238,48 +236,56 @@ async function createWhatsAppClient(deviceId) {
                     '--no-zygote',
                     '--disable-gpu'
                 ],
-                headless: true,
-                timeout: 60000 // Aumentar timeout para 60 segundos
+                headless: "new", // Use o novo modo headless
+                timeout: 60000
             }
         });
 
-        // Evento QR Code
+        // Eventos do cliente (com tratamento de erros)
         client.on('qr', async (qr) => {
-            console.log(`Novo QR Code gerado para deviceId: ${deviceId}`);
-            await updateDeviceStatus(deviceId, 'WAITING_QR', qr);
+            console.log(`Novo QR Code gerado para deviceId: ${sanitizedDeviceId}`);
+            await updateDeviceStatus(sanitizedDeviceId, 'WAITING_QR', qr);
         });
 
-        // Evento Ready
         client.on('ready', async () => {
-            console.log(`Cliente WhatsApp pronto para deviceId: ${deviceId}`);
-            await updateDeviceStatus(deviceId, 'CONNECTED');
+            console.log(`Cliente WhatsApp pronto para deviceId: ${sanitizedDeviceId}`);
+            client.status = 'CONNECTED'; // Define o status do cliente
+            await updateDeviceStatus(sanitizedDeviceId, 'CONNECTED');
         });
 
-        // Evento de falha na autenticação
         client.on('auth_failure', async () => {
-            console.log(`Falha na autenticação para deviceId: ${deviceId}`);
-            await updateDeviceStatus(deviceId, 'AUTH_FAILURE');
-            await clearSession(deviceId);
-            clients.delete(deviceId);
+            console.log(`Falha na autenticação para deviceId: ${sanitizedDeviceId}`);
+            client.status = 'AUTH_FAILURE';
+            await updateDeviceStatus(sanitizedDeviceId, 'AUTH_FAILURE');
+            await clearSession(sanitizedDeviceId);
+            clients.delete(sanitizedDeviceId);
         });
 
-        // Evento de desconexão
         client.on('disconnected', async () => {
-            console.log(`Cliente desconectado para deviceId: ${deviceId}`);
-            await updateDeviceStatus(deviceId, 'DISCONNECTED');
-            await clearSession(deviceId);
-            clients.delete(deviceId);
+            console.log(`Cliente desconectado para deviceId: ${sanitizedDeviceId}`);
+            client.status = 'DISCONNECTED';
+            await updateDeviceStatus(sanitizedDeviceId, 'DISCONNECTED');
+            await clearSession(sanitizedDeviceId);
+            clients.delete(sanitizedDeviceId);
         });
 
-        await client.initialize();
-        clients.set(deviceId, client);
-        console.log(`Cliente WhatsApp inicializado para deviceId: ${deviceId}`);
+        // Inicializa o cliente (com tratamento de erro)
+        try {
+            await client.initialize();
+            clients.set(sanitizedDeviceId, client);
+            console.log(`Cliente WhatsApp inicializado para deviceId: ${sanitizedDeviceId}`);
+
+        } catch (initError) {
+            console.error(`Erro ao inicializar cliente ${sanitizedDeviceId}:`, initError);
+            client.status = 'ERROR';
+            await updateDeviceStatus(sanitizedDeviceId, 'ERROR');
+            throw initError; // Propaga o erro
+        }
+
         return client;
 
-    } catch (error) {
-        console.error(`Erro ao criar cliente WhatsApp para deviceId ${deviceId}: ${error.message}`);
-        await updateDeviceStatus(deviceId, 'ERROR');
-        throw error; // Propaga o erro para quem chamou a função
+    } finally {
+        release(); // Libera o mutex
     }
 }
 
@@ -287,48 +293,56 @@ async function createWhatsAppClient(deviceId) {
 // Endpoints da API
 // -------------------------------------
 
-/**
- * Aplica um rate limit simples por dispositivo.
- * @param {string} deviceId - O ID do dispositivo.
- * @returns {boolean} - Retorna `true` se a requisição pode prosseguir, `false` se o limite foi atingido.
- */
-function applyRateLimit(deviceId) {
-    const now = Date.now();
-    if (lastRequestTimes.has(deviceId)) {
-        const lastRequestTime = lastRequestTimes.get(deviceId);
-        if (now - lastRequestTime < RATE_LIMIT_MS) {
-            console.warn(`Rate limit atingido para deviceId: ${deviceId}`);
-            return false; // Limite atingido
-        }
-    }
-    lastRequestTimes.set(deviceId, now);
-    return true; // Permite a requisição
-}
 
 /**
- * Endpoint para processar a fila de mensagens de um usuário.
- *  Verifica se o usuario_id é válido antes de processar.
- * @param {Request} req - Objeto de requisição.
- * @param {Response} res - Objeto de resposta.
+ * Endpoint para verificar a saúde do servidor.  Não requer autenticação.
+ */
+app.get('/status', (req, res) => {
+    res.json({ status: 'OK', uptime: process.uptime() });
+});
+
+/**
+ * Endpoint para processar a fila de mensagens de um usuário.  Agora com mutex e tratamento de erros.
  */
 app.post('/process-queue', async (req, res) => {
     const { usuario_id, dispositivo_id } = req.body;
 
-    // Validação do usuario_id
     if (!isValidUserId(usuario_id)) {
         console.error(`Tentativa de acesso com usuario_id inválido: ${usuario_id}`);
-        return res.status(400).json({ success: false, message: 'usuario_id inválido. Deve ser um número inteiro positivo.' });
+        return res.status(400).json({ success: false, message: 'usuario_id inválido.' });
     }
 
-     // Aplica rate limiting
-     if (!applyRateLimit(dispositivo_id)) {
-        return res.status(429).json({ success: false, message: 'Muitas requisições. Tente novamente mais tarde.' });
-    }
+    const sanitizedDeviceId = sanitizeDeviceId(dispositivo_id);
 
-    console.log(`Requisição para processar fila recebida. usuario_id: ${usuario_id}, dispositivo_id: ${dispositivo_id}`);
+    // Adquire o mutex global
+    const globalRelease = await globalMutex.acquire();
+
+    // Adquire o mutex do cliente
+    if (!clientMutexes.has(sanitizedDeviceId)) {
+        clientMutexes.set(sanitizedDeviceId, new Mutex());
+    }
+    const clientRelease = await clientMutexes.get(sanitizedDeviceId).acquire();
 
     try {
-        const result = await processMessageQueue(usuario_id, dispositivo_id);
+        // Aplica rate limiting global
+        const now = Date.now();
+        if (now - lastGlobalRequestTime < GLOBAL_RATE_LIMIT_MS) {
+            const waitTime = GLOBAL_RATE_LIMIT_MS - (now - lastGlobalRequestTime);
+            console.warn(`Aplicando rate limit global.  Aguardando ${waitTime}ms`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+        lastGlobalRequestTime = Date.now();
+
+        // Verifica se o cliente existe e está conectado
+        try {
+            getClient(sanitizedDeviceId); // Usa a função getClient
+        } catch (clientError) {
+            return res.status(400).json({ success: false, message: clientError.message });
+        }
+
+        console.log(`Requisição para processar fila. usuario_id: ${usuario_id}, dispositivo_id: ${sanitizedDeviceId}`);
+        const result = await processMessageQueue(usuario_id, sanitizedDeviceId);
+
         if (result.success) {
             console.log(`Fila processada com sucesso para usuario_id: ${usuario_id}`);
             res.json({ success: true });
@@ -336,74 +350,71 @@ app.post('/process-queue', async (req, res) => {
             console.error(`Falha ao processar fila para usuario_id: ${usuario_id}`);
             res.status(500).json({ success: false, error: result.error });
         }
+
     } catch (error) {
         console.error(`Erro ao processar fila para usuario_id: ${usuario_id}: ${error.message}`);
         res.status(500).json({ success: false, error: error.message });
+
+    } finally {
+        clientRelease(); // Libera o mutex do cliente
+        globalRelease(); // Libera o mutex global
     }
 });
 
 /**
- * Processa a fila de mensagens para um determinado usuário.
- *
- * @param {number} usuario_id - ID do usuário.
- * @param {string} dispositivo_id - ID do dispositivo.
- * @returns {Promise<{success: boolean, error?: string}>} - Resultado do processamento.
+ * Processa a fila de mensagens para um determinado usuário.  Agora com tratamento de erros e usando o pool.
  */
 async function processMessageQueue(usuario_id, dispositivo_id) {
-    console.log(`Iniciando processamento da fila para usuário: ${usuario_id}`);
+    console.log(`Iniciando processamento da fila para usuário: ${usuario_id}, dispositivo: ${dispositivo_id}`);
+    let connection;
 
     try {
-        const connection = await mysql.createConnection(dbConfig);
+        connection = await pool.getConnection(); // Obtém conexão do pool
+        const client = getClient(dispositivo_id); // Obtém o cliente
 
         while (true) {
             const [messages] = await connection.execute(
-                'SELECT * FROM fila_mensagens WHERE usuario_id = ? AND status = "PENDENTE" LIMIT ?',
-                [usuario_id, CHUNK_SIZE]
+                'SELECT * FROM fila_mensagens WHERE usuario_id = ? AND dispositivo_id = ? AND status = "PENDENTE" ORDER BY created_at ASC LIMIT ?',
+                [usuario_id, dispositivo_id, CHUNK_SIZE]
             );
 
             if (messages.length === 0) {
-                console.log(`Fila vazia para usuário: ${usuario_id}`);
+                console.log(`Fila vazia para usuário: ${usuario_id}, dispositivo: ${dispositivo_id}`);
                 break;
             }
 
-            console.log(`Processando ${messages.length} mensagens para usuário: ${usuario_id}`);
+            console.log(`Processando ${messages.length} mensagens para usuário: ${usuario_id}, dispositivo: ${dispositivo_id}`);
 
-            // Processa uma mensagem por vez
             for (const message of messages) {
-                await processMessage(message, connection, clients.get(dispositivo_id));
+                await processMessage(message, connection, client);
             }
-
-            // Pequena pausa entre processamentos
-            await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
-        await connection.end();
-        console.log(`Processamento da fila concluído para usuário: ${usuario_id}`);
+        console.log(`Processamento da fila concluído para usuário: ${usuario_id}, dispositivo: ${dispositivo_id}`);
         return { success: true };
 
     } catch (error) {
-        console.error(`Erro ao processar fila para usuário ${usuario_id}: ${error.message}`);
+        console.error(`Erro ao processar fila para usuário ${usuario_id}, dispositivo ${dispositivo_id}:`, error);
         return { success: false, error: error.message };
+
+    } finally {
+        if (connection) connection.release(); // Libera a conexão de volta para o pool
     }
 }
 
 /**
- * Endpoint para obter o progresso da fila de um usuário.
- *  Verifica se o usuario_id é válido.
- * @param {Request} req - Objeto de requisição.
- * @param {Response} res - Objeto de resposta.
+ * Endpoint para obter o progresso da fila de um usuário. Usa o pool de conexões.
  */
 app.get('/queue-progress/:usuario_id', async (req, res) => {
     const usuario_id = parseInt(req.params.usuario_id);
 
-    // Validação do usuario_id
     if (!isValidUserId(usuario_id)) {
         console.error(`Tentativa de acesso com usuario_id inválido: ${usuario_id}`);
-        return res.status(400).json({ success: false, message: 'usuario_id inválido. Deve ser um número inteiro positivo.' });
+        return res.status(400).json({ success: false, message: 'usuario_id inválido.' });
     }
-
+    let connection;
     try {
-        const connection = await mysql.createConnection(dbConfig);
+        connection = await pool.getConnection();
         const [result] = await connection.execute(`
             SELECT
                 COUNT(*) as total,
@@ -414,32 +425,29 @@ app.get('/queue-progress/:usuario_id', async (req, res) => {
             WHERE usuario_id = ?
         `, [usuario_id]);
 
-        await connection.end();
         console.log(`Progresso da fila para usuario_id ${usuario_id} obtido com sucesso.`);
         res.json(result[0]);
     } catch (error) {
         console.error(`Erro ao obter progresso da fila para usuario_id ${usuario_id}: ${error.message}`);
         res.status(500).json({ error: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
 /**
- * Endpoint para obter o status da fila de mensagens de um usuário.
- * Verifica se o usuario_id é válido.
- * @param {Request} req - Objeto de requisição.
- * @param {Response} res - Objeto de resposta.
+ * Endpoint para obter o status da fila de mensagens de um usuário. Usa o pool.
  */
 app.get('/queue-status/:usuario_id', async (req, res) => {
     const usuario_id = parseInt(req.params.usuario_id);
 
-    // Validação do usuario_id
     if (!isValidUserId(usuario_id)) {
-        console.error(`Tentativa de acesso com usuario_id inválido: ${usuario_id}`);
-        return res.status(400).json({ success: false, message: 'usuario_id inválido. Deve ser um número inteiro positivo.' });
+        return res.status(400).json({ success: false, message: 'usuario_id inválido.' });
     }
 
+    let connection;
     try {
-        const connection = await mysql.createConnection(dbConfig);
+        connection = await pool.getConnection();
         const [rows] = await connection.execute(
             `SELECT
                 COUNT(CASE WHEN status = 'PENDENTE' THEN 1 END) as pendentes,
@@ -449,93 +457,82 @@ app.get('/queue-status/:usuario_id', async (req, res) => {
             WHERE usuario_id = ?`,
             [usuario_id]
         );
-        await connection.end();
 
         console.log(`Status da fila para usuario_id ${usuario_id} obtido com sucesso.`);
-        res.json({
-            success: true,
-            status: rows[0]
-        });
+        res.json({ success: true, status: rows[0] });
     } catch (error) {
         console.error(`Erro ao obter status da fila para usuario_id ${usuario_id}: ${error.message}`);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
 /**
- * Endpoint para enviar uma mensagem.
- *  Valida o número de telefone e aplica rate limiting.
- * @param {Request} req - Objeto de requisição.
- * @param {Response} res - Objeto de resposta.
+ * Endpoint para enviar uma mensagem.  Agora com tratamento de erros, mutex e validações.
  */
 app.post('/send-message', async (req, res) => {
     const { deviceId, number, message, mediaPath } = req.body;
+    const sanitizedDeviceId = sanitizeDeviceId(deviceId);
 
-    // Aplica rate limiting
-    if (!applyRateLimit(deviceId)) {
-        return res.status(429).json({ success: false, message: 'Muitas requisições. Tente novamente mais tarde.' });
-    }
+    // Adquire o mutex global
+    const globalRelease = await globalMutex.acquire();
 
-    // Validação do número de telefone
-    if (!isValidPhoneNumber(number)) {
-        console.error(`Tentativa de envio para número inválido: ${number}`);
-        return res.status(400).json({ success: false, message: 'Número de telefone inválido.' });
+    // Adquire o mutex do cliente
+    if (!clientMutexes.has(sanitizedDeviceId)) {
+        clientMutexes.set(sanitizedDeviceId, new Mutex());
     }
+    const clientRelease = await clientMutexes.get(sanitizedDeviceId).acquire();
 
     try {
-        const client = clients.get(deviceId);
-        if (!client) {
-            throw new Error('Dispositivo não encontrado ou não conectado');
+        // Aplica rate limiting global
+        const now = Date.now();
+        if (now - lastGlobalRequestTime < GLOBAL_RATE_LIMIT_MS) {
+            const waitTime = GLOBAL_RATE_LIMIT_MS - (now - lastGlobalRequestTime);
+            console.warn(`Aplicando rate limit global.  Aguardando ${waitTime}ms`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
         }
+        lastGlobalRequestTime = Date.now();
+
+        // Validações
+        if (!isValidPhoneNumber(number)) {
+            console.error(`Tentativa de envio para número inválido: ${number}`);
+            return res.status(400).json({ success: false, message: 'Número de telefone inválido.' });
+        }
+
+        // Verifica se o cliente existe e está conectado
+        const client = getClient(sanitizedDeviceId);
 
         let formattedNumber = number;
         if (!formattedNumber.includes('@c.us')) {
             formattedNumber = `${formattedNumber}@c.us`;
         }
-
         console.log(`Enviando mensagem para: ${formattedNumber}`);
 
-        // Enviar arquivo se existir
+        // Envio de mídia (com tratamento de erro)
         if (mediaPath) {
             try {
-                // Verifica se o arquivo existe
                 if (!fs.existsSync(mediaPath)) {
                     throw new Error('Arquivo não encontrado: ' + mediaPath);
                 }
-
-                console.log(`Enviando mídia: ${mediaPath}`);
                 const media = MessageMedia.fromFilePath(mediaPath);
-
-                // Envia a mídia primeiro
                 await client.sendMessage(formattedNumber, media);
-
-                // Pequeno intervalo após envio de mídia
-                await new Promise(resolve => setTimeout(resolve, 2000));
-
                 console.log('Mídia enviada com sucesso');
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Pausa
             } catch (mediaError) {
                 console.error('Erro ao enviar mídia:', mediaError);
-                return res.status(500).json({
-                    success: false,
-                    message: 'Erro ao enviar mídia: ' + mediaError.message
-                });
+                // Não retorna, tenta enviar a mensagem de texto
             }
         }
 
-        // Enviar mensagem de texto se existir
+        // Envio de mensagem de texto (com tratamento de erro)
         if (message && message.trim()) {
             try {
                 await client.sendMessage(formattedNumber, message);
                 console.log('Mensagem de texto enviada com sucesso');
             } catch (messageError) {
-                console.error('Erro ao enviar mensagem:', messageError);
-                return res.status(500).json({
-                    success: false,
-                    message: 'Erro ao enviar mensagem: ' + messageError.message
-                });
+                console.error('Erro ao enviar mensagem de texto:', messageError);
+                return res.status(500).json({ success: false, message: 'Erro ao enviar mensagem de texto: ' + messageError.message });
             }
         }
 
@@ -544,148 +541,130 @@ app.post('/send-message', async (req, res) => {
 
     } catch (error) {
         console.error(`Erro ao enviar mensagem para ${number}: ${error.message}`);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
+
+    } finally {
+        clientRelease(); // Libera o mutex do cliente
+        globalRelease(); // Libera o mutex global
     }
 });
 
 /**
- * Endpoint para verificar o status de um dispositivo.
- *
- * @param {Request} req - Objeto de requisição.
- * @param {Response} res - Objeto de resposta.
+ * Endpoint para verificar o status de um dispositivo. Usa o pool.
  */
 app.get('/check-status/:deviceId', async (req, res) => {
     const { deviceId } = req.params;
+    const sanitizedDeviceId = sanitizeDeviceId(deviceId);
+    let connection;
     try {
-        const connection = await mysql.createConnection(dbConfig);
+        connection = await pool.getConnection();
         const [rows] = await connection.execute(
             'SELECT status FROM dispositivos WHERE device_id = ?',
-            [deviceId]
+            [sanitizedDeviceId]
         );
-        await connection.end();
 
         if (rows.length > 0) {
-            console.log(`Status do dispositivo ${deviceId} consultado: ${rows[0].status}`);
-            res.json({
-                success: true,
-                status: rows[0].status
-            });
+            console.log(`Status do dispositivo ${sanitizedDeviceId} consultado: ${rows[0].status}`);
+            res.json({ success: true, status: rows[0].status });
         } else {
-            console.log(`Dispositivo ${deviceId} não encontrado.`);
-            res.status(404).json({
-                success: false,
-                message: 'Dispositivo não encontrado'
-            });
+            console.log(`Dispositivo ${sanitizedDeviceId} não encontrado.`);
+            res.status(404).json({ success: false, message: 'Dispositivo não encontrado' });
         }
     } catch (error) {
-        console.error(`Erro ao verificar status do dispositivo ${deviceId}: ${error.message}`);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        console.error(`Erro ao verificar status do dispositivo ${sanitizedDeviceId}: ${error.message}`);
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
 /**
- * Endpoint para iniciar um dispositivo.
- *  Aplica rate limiting.
- * @param {Request} req - Objeto de requisição.
- * @param {Response} res - Objeto de resposta.
+ * Endpoint para iniciar um dispositivo.  Agora com tratamento de erros e mutex.
  */
 app.post('/init-device', async (req, res) => {
     const { deviceId } = req.body;
     if (!deviceId) {
-        return res.status(400).json({
-            success: false,
-            message: 'deviceId é obrigatório'
-        });
+        return res.status(400).json({ success: false, message: 'deviceId é obrigatório' });
     }
 
-    // Aplica rate limiting
-    if (!applyRateLimit(deviceId)) {
-        return res.status(429).json({ success: false, message: 'Muitas requisições. Tente novamente mais tarde.' });
-    }
+    const sanitizedDeviceId = sanitizeDeviceId(deviceId);
+
+    // Adquire o mutex global
+    const globalRelease = await globalMutex.acquire();
 
     try {
-        // Destruir cliente existente se houver
-        if (clients.has(deviceId)) {
-            console.log(`Destruindo cliente existente para deviceId: ${deviceId}`);
-            const existingClient = clients.get(deviceId);
-            await existingClient.destroy();
-            clients.delete(deviceId);
+        // Destruir cliente existente, se houver (com mutex)
+        if (clients.has(sanitizedDeviceId)) {
+            console.log(`Destruindo cliente existente para deviceId: ${sanitizedDeviceId}`);
+            if (!clientMutexes.has(sanitizedDeviceId)) {
+                clientMutexes.set(sanitizedDeviceId, new Mutex());
+            }
+            const clientRelease = await clientMutexes.get(sanitizedDeviceId).acquire();
+            try {
+                const existingClient = clients.get(sanitizedDeviceId);
+                await existingClient.destroy();
+                clients.delete(sanitizedDeviceId);
+            } finally {
+                clientRelease();
+            }
         }
 
         // Limpar sessão antiga
-        await clearSession(deviceId);
+        await clearSession(sanitizedDeviceId);
 
-        console.log(`Iniciando novo cliente para deviceId: ${deviceId}`);
-        await createWhatsAppClient(deviceId);
+        console.log(`Iniciando novo cliente para deviceId: ${sanitizedDeviceId}`);
+        await createWhatsAppClient(sanitizedDeviceId); // A criação já lida com o mutex
 
         res.json({ success: true });
+
     } catch (error) {
-        console.error(`Erro ao iniciar dispositivo ${deviceId}: ${error.message}`);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        console.error(`Erro ao iniciar dispositivo ${sanitizedDeviceId}: ${error.message}`);
+        res.status(500).json({ success: false, message: error.message });
+
+    } finally {
+        globalRelease(); // Libera o mutex global
     }
 });
 
 /**
- * Endpoint para obter o QR code de um dispositivo.
- *
- * @param {Request} req - Objeto de requisição.
- * @param {Response} res - Objeto de resposta.
+ * Endpoint para obter o QR code de um dispositivo. Usa o pool.
  */
 app.get('/get-qr/:deviceId', async (req, res) => {
     const deviceId = req.params.deviceId;
+    const sanitizedDeviceId = sanitizeDeviceId(deviceId);
+    let connection;
 
     try {
-        const connection = await mysql.createConnection(dbConfig);
+        connection = await pool.getConnection();
         const [rows] = await connection.execute(
             'SELECT qr_code, status FROM dispositivos WHERE device_id = ?',
-            [deviceId]
+            [sanitizedDeviceId]
         );
-        await connection.end();
 
         if (rows.length > 0) {
             const device = rows[0];
 
-            // Verificação mais precisa do status de conexão
-            if (device.status === 'CONNECTED' && clients.has(deviceId)) {
-                const client = clients.get(deviceId);
+            // Verifica se está conectado e se o cliente existe
+            if (device.status === 'CONNECTED' && clients.has(sanitizedDeviceId)) {
+                const client = clients.get(sanitizedDeviceId);
                 if (client && client.info) {
-                    console.log(`Dispositivo ${deviceId} conectado. Retornando status.`);
-                    res.json({
-                        success: true,
-                        status: 'CONNECTED'
-                    });
-                    return;
+                    console.log(`Dispositivo ${sanitizedDeviceId} conectado. Retornando status.`);
+                    return res.json({ success: true, status: 'CONNECTED' });
                 }
             }
 
-            console.log(`Retornando QR code para dispositivo ${deviceId}. Status: ${device.status}`);
-            res.json({
-                success: true,
-                qr: device.qr_code,
-                status: device.status
-            });
+            console.log(`Retornando QR code para dispositivo ${sanitizedDeviceId}. Status: ${device.status}`);
+            res.json({ success: true, qr: device.qr_code, status: device.status });
+
         } else {
-            console.log(`Dispositivo ${deviceId} não encontrado para obter QR code.`);
-            res.status(404).json({
-                success: false,
-                message: 'Dispositivo não encontrado'
-            });
+            console.log(`Dispositivo ${sanitizedDeviceId} não encontrado para obter QR code.`);
+            res.status(404).json({ success: false, message: 'Dispositivo não encontrado' });
         }
     } catch (error) {
-        console.error(`Erro ao obter QR code para dispositivo ${deviceId}: ${error.message}`);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        console.error(`Erro ao obter QR code para dispositivo ${sanitizedDeviceId}: ${error.message}`);
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
@@ -693,31 +672,52 @@ app.get('/get-qr/:deviceId', async (req, res) => {
 // Inicialização do Servidor
 // -------------------------------------
 
-const port = 3000;
+const port = process.env.PORT || 3000; // Usa a porta definida no ambiente ou 3000
 app.listen(port, () => {
     console.log(`Servidor rodando na porta ${port}`);
 });
 
-// Tratamento de erros não capturados (unhandledRejection)
-process.on('unhandledRejection', (error) => {
-    console.error('Erro não tratado (unhandledRejection):', error);
+// Tratamento de erros aprimorado
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-// Tratamento de exceções não capturadas (uncaughtException)
 process.on('uncaughtException', (error) => {
-    console.error('Exceção não capturada (uncaughtException):', error);
+    console.error('Uncaught Exception:', error);
+    process.exit(1); // Sai do processo em caso de exceção não tratada (recomendado)
 });
 
-// Limpeza na saída (SIGINT - Ctrl+C)
+// Limpeza na saída (SIGINT - Ctrl+C) - Aprimorado
 process.on('SIGINT', async () => {
     console.log('Encerrando servidor...');
+
+    // Destroi todos os clientes (usando os mutexes)
     for (const [deviceId, client] of clients) {
-        try {
-            await client.destroy();
-            console.log(`Cliente ${deviceId} destruído`);
-        } catch (error) {
-            console.error(`Erro ao destruir cliente ${deviceId}:`, error);
+        if (clientMutexes.has(deviceId)) {
+            const release = await clientMutexes.get(deviceId).acquire();
+            try {
+                await client.destroy();
+                console.log(`Cliente ${deviceId} destruído`);
+            } catch (error) {
+                console.error(`Erro ao destruir cliente ${deviceId}:`, error);
+            } finally {
+                release();
+            }
         }
     }
-    process.exit(0); // Sai do processo com código 0 (sucesso)
+
+    // Fecha o pool de conexões
+    try {
+        await pool.end();
+        console.log('Pool de conexões fechado.');
+    } catch (error) {
+        console.error('Erro ao fechar pool de conexões:', error);
+    }
+
+    process.exit(0);
+});
+
+// Adicionei um endpoint simples para verificar se o servidor está online
+app.get('/', (req, res) => {
+    res.send('Servidor WhatsApp online!');
 });

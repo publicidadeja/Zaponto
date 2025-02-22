@@ -1,13 +1,6 @@
-<?php if (isset($_SESSION['mensagem'])): ?>
-    <div class="alert alert-<?php echo $_SESSION['mensagem']['tipo'] == 'error' ? 'danger' : $_SESSION['mensagem']['tipo']; ?> alert-dismissible fade show" role="alert">
-        <?php echo $_SESSION['mensagem']['texto']; ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    <?php unset($_SESSION['mensagem']); ?>
-<?php endif; ?>
-
 <?php
 session_start();
+
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php');
     exit;
@@ -82,7 +75,70 @@ if (empty($dispositivos)) {
 // Variável para controlar a exibição da mensagem de sucesso/erro
 $mensagem_status = null;
 
-// Função para verificar número existente
+
+/**
+ * Valida um número de telefone no formato brasileiro para WhatsApp.
+ *
+ * @param string $numero Número de telefone a ser validado.
+ * @return bool True se o número for válido, False caso contrário.
+ */
+function validarNumeroWhatsAppBrasil($numero) {
+    // Remove caracteres não numéricos
+    $numero = preg_replace('/[^0-9]/', '', $numero);
+
+    // Verifica se tem 10 ou 11 dígitos (sem código do país)
+    if (strlen($numero) < 10 || strlen($numero) > 11) {
+        return false;
+    }
+
+    // Lista de DDDs válidos (você pode expandir essa lista se necessário)
+    $dddsValidos = [
+        11, 12, 13, 14, 15, 16, 17, 18, 19,
+        21, 22, 24, 27, 28,
+        31, 32, 33, 34, 35, 37, 38,
+        41, 42, 43, 44, 45, 46, 47, 48, 49,
+        51, 53, 54, 55,
+        61, 62, 63, 64, 65, 66, 67, 68, 69,
+        71, 73, 74, 75, 77, 79,
+        81, 82, 83, 84, 85, 86, 87, 88, 89,
+        91, 92, 93, 94, 95, 96, 97, 98, 99
+    ];
+
+    // Extrai o DDD
+    $ddd = substr($numero, 0, 2);
+
+    // Verifica se o DDD é válido
+    if (!in_array($ddd, $dddsValidos)) {
+        return false;
+    }
+
+    // Se tiver 11 dígitos, verifica o nono dígito (deve ser 9 para celular)
+    if (strlen($numero) == 11) {
+        $nonoDigito = substr($numero, 2, 1);
+        if ($nonoDigito != '9') {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+/**
+ * Verifica se um número já existe na base de dados.
+ *
+ * @param PDO $pdo Conexão com o banco de dados.
+ * @param string $numero Número a ser verificado.
+ * @param int $usuario_id ID do usuário atual.
+ * @return array|false Retorna um array com os dados do lead se existir, false caso contrário.
+ */
+function verificarDuplicidade(PDO $pdo, $numero, $usuario_id) {
+    $stmt = $pdo->prepare("SELECT nome FROM leads_enviados WHERE numero = ? AND usuario_id = ?");
+    $stmt->execute([$numero, $usuario_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $result;
+}
+
 
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -91,98 +147,111 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $nome = preg_replace('/[^a-zA-ZÀ-ÿ\s]/', '', trim($_POST['nome']));
     $dispositivo_id = $_POST['dispositivo_id'] ?? '';
 
-    // Validações
-    if (!validarNumeroTelefone($numero)) {
-        $mensagem_status = ['tipo' => 'danger', 'texto' => 'Número de telefone inválido'];
-    } elseif (empty($nome)) {
+    //--- VALIDAÇÕES ---
+    if (empty($nome)) {
         $mensagem_status = ['tipo' => 'danger', 'texto' => 'O campo nome não pode estar vazio'];
     } elseif (empty($dispositivo_id)) {
         $mensagem_status = ['tipo' => 'danger', 'texto' => 'Selecione um dispositivo'];
     } else {
-        try {
-            // Verificar status do dispositivo
-            $stmt = $pdo->prepare("SELECT status FROM dispositivos WHERE device_id = ? AND usuario_id = ?");
-            $stmt->execute([$dispositivo_id, $_SESSION['usuario_id']]);
-            $device = $stmt->fetch();
-
-            if (!$device || $device['status'] !== 'CONNECTED') {
-                throw new Exception('Dispositivo não está conectado. Por favor, reconecte o dispositivo.');
-            }
-
-            // Formatar número para o padrão WhatsApp
-            if (strlen($numero) == 10 || strlen($numero) == 11) {
-                $numero = '55' . $numero;
-            }
-
-            // Personalizar mensagem
-            $mensagem_personalizada = str_replace('{nome}', $nome, $mensagem_base);
-
-            // Preparar dados para envio
-            $data = [
-                'deviceId' => $dispositivo_id,
-                'number' => $numero,
-                'message' => $mensagem_personalizada
+        // 1. VERIFICAÇÃO DE DUPLICIDADE (opcional - comente se não quiser)
+        $duplicado = verificarDuplicidade($pdo, $numero, $_SESSION['usuario_id']);
+        if ($duplicado) {
+            $mensagem_status = [
+                'tipo' => 'warning',
+                'texto' => "Este número já pertence a {$duplicado['nome']} em sua base de leads!  Envie a mensagem mesmo assim no botão abaixo, se desejar."
             ];
-
-            // Adicionar arquivo padrão se existir
-            if (!empty($arquivo_padrao)) {
-                $arquivo_path = '../uploads/' . $arquivo_padrao;
-                if (file_exists($arquivo_path)) {
-                    $data['mediaPath'] = $arquivo_path;
-                }
-            }
-
-            // Log para debug
-            error_log('Enviando mensagem: ' . json_encode($data));
-
-            // Enviar mensagem via API
-            $ch = curl_init('http://localhost:3000/send-message');
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => json_encode($data),
-                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => 30
-            ]);
-            
-            $response = curl_exec($ch);
-            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            
-            // Log para debug
-            error_log('Resposta API: ' . $response);
-            error_log('HTTP Code: ' . $http_code);
-            
-            if ($response === false) {
-                throw new Exception('Erro na conexão com o servidor: ' . curl_error($ch));
-            }
-            
-            curl_close($ch);
-            $result = json_decode($response, true);
-
-            if ($http_code == 200 && isset($result['success']) && $result['success']) {
-                // Inserir na tabela de leads enviados
-                $stmt = $pdo->prepare("INSERT INTO leads_enviados (usuario_id, dispositivo_id, numero, mensagem, nome, status, arquivo) 
-                                     VALUES (?, ?, ?, ?, ?, 'ENVIADO', ?)");
-                $stmt->execute([
-                    $_SESSION['usuario_id'],
-                    $dispositivo_id,
-                    $numero,
-                    $mensagem_personalizada,
-                    $nome,
-                    $arquivo_padrao
-                ]);
-                
-                $mensagem_status = ['tipo' => 'success', 'texto' => 'Mensagem enviada com sucesso!'];
+            // Se encontrou duplicado, NÃO continua a validação.  O usuário decide se envia.
+        } else {
+            // 2. VALIDAÇÃO DO NÚMERO
+            if (!validarNumeroWhatsAppBrasil($numero)) {
+                $mensagem_status = ['tipo' => 'danger', 'texto' => 'Número de telefone inválido para WhatsApp no Brasil. Verifique o DDD e o nono dígito (se aplicável).'];
             } else {
-                $error_message = isset($result['message']) ? $result['message'] : 'Erro desconhecido';
-                throw new Exception('Falha ao enviar mensagem: ' . $error_message);
-            }
-        } catch (Exception $e) {
-            $mensagem_status = ['tipo' => 'danger', 'texto' => $e->getMessage()];
-            error_log('Erro ao enviar mensagem: ' . $e->getMessage());
-        }
-    }
-}
+                //---  NÚMERO VÁLIDO, CONTINUA O PROCESSO ---
+                try {
+                    // Verificar status do dispositivo
+                    $stmt = $pdo->prepare("SELECT status FROM dispositivos WHERE device_id = ? AND usuario_id = ?");
+                    $stmt->execute([$dispositivo_id, $_SESSION['usuario_id']]);
+                    $device = $stmt->fetch();
+
+                    if (!$device || $device['status'] !== 'CONNECTED') {
+                        throw new Exception('Dispositivo não está conectado. Por favor, reconecte o dispositivo.');
+                    }
+
+                    // Formatar número para o padrão WhatsApp (SEMPRE com 55)
+                    $numero = '55' . $numero;
+
+
+                    // Personalizar mensagem
+                    $mensagem_personalizada = str_replace('{nome}', $nome, $mensagem_base);
+
+                    // Preparar dados para envio
+                    $data = [
+                        'deviceId' => $dispositivo_id,
+                        'number' => $numero,
+                        'message' => $mensagem_personalizada
+                    ];
+
+                    // Adicionar arquivo padrão se existir
+                    if (!empty($arquivo_padrao)) {
+                        $arquivo_path = '../uploads/' . $arquivo_padrao;
+                        if (file_exists($arquivo_path)) {
+                            $data['mediaPath'] = $arquivo_path;
+                        }
+                    }
+
+                    // Log para debug
+                    error_log('Enviando mensagem: ' . json_encode($data));
+
+                    // Enviar mensagem via API
+                    $ch = curl_init('http://localhost:3000/send-message');
+                    curl_setopt_array($ch, [
+                        CURLOPT_POST => true,
+                        CURLOPT_POSTFIELDS => json_encode($data),
+                        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_TIMEOUT => 30
+                    ]);
+
+                    $response = curl_exec($ch);
+                    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+                    // Log para debug
+                    error_log('Resposta API: ' . $response);
+                    error_log('HTTP Code: ' . $http_code);
+
+                    if ($response === false) {
+                        throw new Exception('Erro na conexão com o servidor: ' . curl_error($ch));
+                    }
+
+                    curl_close($ch);
+                    $result = json_decode($response, true);
+
+                    if ($http_code == 200 && isset($result['success']) && $result['success']) {
+                        // Inserir na tabela de leads enviados
+                        $stmt = $pdo->prepare("INSERT INTO leads_enviados (usuario_id, dispositivo_id, numero, mensagem, nome, status, arquivo) 
+                                             VALUES (?, ?, ?, ?, ?, 'ENVIADO', ?)");
+                        $stmt->execute([
+                            $_SESSION['usuario_id'],
+                            $dispositivo_id,
+                            $numero,
+                            $mensagem_personalizada,
+                            $nome,
+                            $arquivo_padrao
+                        ]);
+
+                        $mensagem_status = ['tipo' => 'success', 'texto' => 'Mensagem enviada com sucesso!'];
+                    } else {
+                        $error_message = isset($result['message']) ? $result['message'] : 'Erro desconhecido';
+                        throw new Exception('Falha ao enviar mensagem: ' . $error_message);
+                    }
+                } catch (Exception $e) {
+                    $mensagem_status = ['tipo' => 'danger', 'texto' => $e->getMessage()];
+                    error_log('Erro ao enviar mensagem: ' . $e->getMessage());
+                }
+            } // Fim do else (validação do número)
+        } // Fim do else (verificação de duplicidade)
+    } //Fim do else principal
+} // Fim do if ($_SERVER['REQUEST_METHOD'] == 'POST')
 ?>
 
 <!DOCTYPE html>
@@ -556,6 +625,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <button type="submit" class="btn btn-primary w-100">
                             <i class="fas fa-paper-plane me-2"></i> Enviar Mensagem
                         </button>
+                         <!-- Botão de Envio (Duplicado) -->
+                        <?php if (isset($duplicado) && $duplicado): ?>
+                            <button type="submit" name="enviar_duplicado" class="btn btn-warning w-100 mt-2">
+                                <i class="fas fa-exclamation-triangle me-2"></i> Enviar Mesmo Assim
+                            </button>
+                        <?php endif; ?>
                     </form>
                 </div>
             </div>
@@ -574,74 +649,63 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </script>
     
     <script>
-        $(document).ready(function() {
-            $('#numero').on('blur', function() {
-                var numero = $(this).val().replace(/\D/g, '');
-                if (numero.length >= 10) {
-                    $.ajax({
-                        url: 'verificar_numero.php',
-                        method: 'POST',
-                        data: { numero: numero },
-                        success: function(response) {
-                            var data = JSON.parse(response);
-                            if (data.existe) {
-                                $('.alert').remove(); // Remove alertas anteriores
-                                $('.form-container form').prepend(
+    $(document).ready(function() {
+        let isSubmitting = false;
+
+        $('form').on('submit', function(e) {
+            // Verifica se o botão "Enviar Mesmo Assim" foi clicado
+            if (e.originalEvent && e.originalEvent.submitter && e.originalEvent.submitter.name === 'enviar_duplicado') {
+                // Permite o envio normal, sem validações adicionais
+                isSubmitting = true;
+                return; // Não previne o comportamento padrão
+            }
+
+            e.preventDefault(); // Previne o envio padrão do formulário
+
+            if (isSubmitting) return; // Evita múltiplos envios
+
+            var $form = $(this);
+            var numero = $('#numero').val().replace(/\D/g, '');
+
+            // 1. VERIFICAÇÃO DE DUPLICIDADE (agora feita via AJAX)
+            $.ajax({
+                url: 'verificar_numero.php', // Script PHP que faz a verificação
+                method: 'POST',
+                data: { numero: numero },
+                dataType: 'json', // Espera uma resposta JSON
+                success: function(data) {
+                    if (data.existe) {
+                        // Número duplicado:  Mostra o aviso e o botão "Enviar Mesmo Assim"
+                        $('.alert').remove(); // Remove alertas anteriores
+                        $form.find('button[type="submit"]').after(
+                            '<button type="submit" name="enviar_duplicado" class="btn btn-warning w-100 mt-2">' +
+                            '<i class="fas fa-exclamation-triangle me-2"></i> Enviar Mesmo Assim' +
+                            '</button>'
+                        );
+                         $form.prepend(
                                     '<div class="alert alert-warning">' +
                                     'Este número já pertence a ' + data.nome + ' em sua base de leads!' +
                                     '</div>'
                                 );
-                            }
-                        }
-                    });
+                        // Não envia o formulário neste caso.
+                    } else {
+                        // Número não duplicado:  Prossegue com o envio normal
+                        isSubmitting = true;
+                        $('.alert').remove(); // Remove alertas
+                        $form.off('submit').submit(); // Remove o manipulador de eventos atual e envia
+                    }
+                },
+                error: function() {
+                    // Erro na requisição AJAX:  Loga o erro e permite o envio (melhor do que travar)
+                    console.error("Erro na verificação de duplicidade.");
+                    isSubmitting = true;
+                    $form.off('submit').submit();
                 }
             });
         });
-    </script>
+    });
+</script>
 
-    <script>
-        $(document).ready(function() {
-            let isSubmitting = false;
-
-            $('form').on('submit', function(e) {
-                e.preventDefault();
-                
-                if (isSubmitting) return false;
-
-                var $form = $(this);
-                var numero = $('#numero').val().replace(/\D/g, '');
-
-                $.ajax({
-                    url: 'verificar_numero.php',
-                    method: 'POST',
-                    data: { numero: numero },
-                    success: function(response) {
-                        try {
-                            var data = JSON.parse(response);
-                            if (data.existe) {
-                                if (confirm('Este número já pertence a ' + data.nome + ' em sua base de leads! Deseja enviar a mensagem mesmo assim?')) {
-                                    isSubmitting = true;
-                                    $('.alert').remove();
-                                    $form[0].submit(); // Usar o submit nativo do formulário
-                                }
-                            } else {
-                                isSubmitting = true;
-                                $('.alert').remove();
-                                $form[0].submit(); // Usar o submit nativo do formulário
-                            }
-                        } catch (error) {
-                            console.error('Erro ao processar resposta:', error);
-                            $form[0].submit();
-                        }
-                    },
-                    error: function() {
-                        // Em caso de erro na verificação, permite o envio
-                        $form[0].submit();
-                    }
-                });
-            });
-        });
-    </script>
 </body>
 </html>
 
