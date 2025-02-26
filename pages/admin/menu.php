@@ -1,5 +1,8 @@
 <?php
 // /pages/admin/menu.php
+if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.1') {
+    $base_url .= '/xzappro';
+}
 $current_page = basename($_SERVER['PHP_SELF']);
 ?>
 
