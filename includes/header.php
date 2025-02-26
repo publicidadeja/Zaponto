@@ -1,5 +1,4 @@
 <?php
-
 /**
  *  ZapLocal - header.php
  *

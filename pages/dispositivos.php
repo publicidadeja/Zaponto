@@ -381,7 +381,7 @@ $dispositivos = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 statusBadge.textContent = 'Reconectando...';
             }
 
-            fetch('http://localhost:3000/init-device', {
+            fetch('https://app.zaponto.com.br/init-device', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -418,7 +418,7 @@ $dispositivos = $stmt->fetchAll(PDO::FETCH_ASSOC);
             const devices = document.querySelectorAll('[data-device-id]');
             devices.forEach(device => {
                 const deviceId = device.dataset.deviceId;
-                fetch(`http://localhost:3000/check-status/${deviceId}`)
+                fetch(`https://app.zaponto.com.br/check-status/${deviceId}`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {

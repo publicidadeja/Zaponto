@@ -43,8 +43,8 @@ app.use((req, res, next) => {
 // Configuração do banco de dados (usando variáveis de ambiente) - Melhorado
 const dbConfig = {
     host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
+    user: process.env.DB_USER || 'testuser',
+    password: process.env.DB_PASSWORD || 'password',
     database: process.env.DB_DATABASE || 'balcao',
     waitForConnections: true, // Importante para lidar com pool de conexões
     connectionLimit: 10,      // Aumenta o limite de conexões (ajuste conforme necessário)

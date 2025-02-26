@@ -1,4 +1,6 @@
 <?php
+//echo phpinfo();
+//exit();
 session_start();
 include '../includes/auth.php';
 redirecionarSeNaoLogado();

@@ -17,6 +17,6 @@
     "mysql2": "^3.12.0",
     "p-limit": "^6.2.0",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.26.0"
+    "whatsapp-web.js": "^1.16.4-alpha.0"
   }
 }
