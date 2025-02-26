@@ -42,13 +42,14 @@ app.use((req, res, next) => {
 
 // Configuração do banco de dados (usando variáveis de ambiente) - Melhorado
 const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
+    host: process.env.DB_HOST || '127.0.0.1',
     user: process.env.DB_USER || 'testuser',
     password: process.env.DB_PASSWORD || 'password',
     database: process.env.DB_DATABASE || 'balcao',
     waitForConnections: true, // Importante para lidar com pool de conexões
     connectionLimit: 10,      // Aumenta o limite de conexões (ajuste conforme necessário)
     queueLimit: 0,            // 0 = sem limite de fila (importante para produção)
+    port: 3306
 };
 
 // Cria um pool de conexões (melhor prática para produção)
