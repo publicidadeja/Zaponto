@@ -276,7 +276,6 @@ async function createWhatsAppClient(deviceId) {
 		// Inicializa o cliente (com tratamento de erro)
 		try {
 			await client.initialize();
-			console.log("linha seguinte");
 			clients.set(sanitizedDeviceId, client);
 			console.log(`Cliente WhatsApp inicializado para deviceId: ${sanitizedDeviceId}`);
 		} catch (initError) {
@@ -329,7 +328,7 @@ app.post("/process-message", async (req, res) => {
 	const messageId = message.id; // Para logging
 	console.log(`[${messageId}] Processando mensagem para: ${formattedNumber}`);
 
-	const client = getClient(dispositivo_id);
+	const client = getClient(sanitizeDeviceId(message.dispositivo_id));
 
 	try {
 		// Verifica se o número está registrado *antes* de tentar enviar
