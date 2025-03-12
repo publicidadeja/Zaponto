@@ -1,8 +1,8 @@
 <?php
 $host = '127.0.0.1';
 $dbname = 'balcao';
-$username = 'testuser';
-$password = 'password';
+$username = 'root';
+$password = 'MoonOfIvansia';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
@@ -12,4 +12,3 @@ try {
 } catch (PDOException $e) {
     die("Erro ao conectar ao banco de dados: " . $e->getMessage());
 }
-?>
